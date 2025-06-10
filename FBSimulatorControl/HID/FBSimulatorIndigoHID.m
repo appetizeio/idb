@@ -128,6 +128,8 @@ typedef struct {
       return ButtonEventSourceSideButton;
     case FBSimulatorHIDButtonSiri:
       return ButtonEventSourceSiri;
+    case FBSimulatorHIDButtonSoftKeyboard:
+      return ButtonEventSourceSoftKeyboard;
   }
   NSAssert(NO, @"Button Code %lul is not known", (unsigned long)button);
 }

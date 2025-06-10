@@ -92,6 +92,8 @@ struct HidMethodHandler {
       return .sideButton
     case .siri:
       return .siri
+    case .softKeyboard:
+        return .softKeyboard
     case .UNRECOGNIZED:
       return nil
     }
