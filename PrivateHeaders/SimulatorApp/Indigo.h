@@ -86,6 +86,7 @@ typedef struct {
 #define ButtonEventSourceKeyboard 0x2710
 #define ButtonEventSourceSideButton 0xbb8
 #define ButtonEventSourceSiri 0x400002
+#define ButtonEventSourceSoftKeyboard 0x3f0
 
 #define ButtonEventTargetHardware 0x33
 #define ButtonEventTargetKeyboard 0x64

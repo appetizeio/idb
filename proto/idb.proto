@@ -345,6 +345,7 @@ message HIDEvent {
     LOCK = 2;
     SIDE_BUTTON = 3;
     SIRI = 4;
+    SOFT_KEYBOARD = 5;
   }
 
   message HIDButton {
