@@ -27,6 +27,7 @@ typedef NS_ENUM(int, FBSimulatorHIDButton) {
   FBSimulatorHIDButtonLock = 3,
   FBSimulatorHIDButtonSideButton = 4,
   FBSimulatorHIDButtonSiri = 5,
+  FBSimulatorHIDButtonSoftKeyboard = 6,
 };
 
 /**
