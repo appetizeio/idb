@@ -56,6 +56,7 @@ service CompanionService {
   rpc screenshot(ScreenshotRequest) returns (ScreenshotResponse) {}
   rpc video_stream(stream VideoStreamRequest)
       returns (stream VideoStreamResponse) {}
+  rpc framebuffer_stream(stream FramebufferStreamRequest) returns (stream FramebufferStreamResponse) {}
   // Crash Operations
   rpc crash_delete(CrashLogQuery) returns (CrashLogResponse) {}
   rpc crash_list(CrashLogQuery) returns (CrashLogResponse) {}
@@ -491,6 +492,23 @@ message VideoStreamResponse {
     bytes log_output = 1;
     Payload payload = 2;
   }
+}
+
+message FramebufferStreamRequest {
+    message CopyFramebuffer {
+        string shared_memory_name = 1;
+        uint64 shared_memory_length = 2;
+    }
+    message Stop {}
+    oneof control {
+        CopyFramebuffer copy_framebuffer = 1;
+        Stop stop = 2;
+    }
+}
+
+message FramebufferStreamResponse {
+    string shared_memory_name = 1;
+    uint64 bytes_written = 2;
 }
 
 message LaunchRequest {

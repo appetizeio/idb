@@ -263,6 +263,13 @@ final class CompanionServiceProvider: Idb_CompanionServiceAsyncProvider {
     }
   }
 
+    func framebuffer_stream(requestStream: GRPCAsyncRequestStream<Idb_FramebufferStreamRequest>, responseStream: GRPCAsyncResponseStreamWriter<Idb_FramebufferStreamResponse>, context: GRPCAsyncServerCallContext) async throws {
+    return try await FBTeardownContext.withAutocleanup {
+      try await FramebufferStreamMethodHandler(target: target, targetLogger: targetLogger, commandExecutor: commandExecutor)
+            .handle(requestStream: requestStream, responseStream: responseStream, context: context)
+    }
+  }
+
   func crash_delete(request: Idb_CrashLogQuery, context: GRPCAsyncServerCallContext) async throws -> Idb_CrashLogResponse {
     return try await FBTeardownContext.withAutocleanup {
       try await CrashDeleteMethodHandler(commandExecutor: commandExecutor)
