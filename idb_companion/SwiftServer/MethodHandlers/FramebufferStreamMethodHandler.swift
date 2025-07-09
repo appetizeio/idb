@@ -18,21 +18,26 @@ struct FramebufferStreamMethodHandler {
   let commandExecutor: FBIDBCommandExecutor
 
   func handle(requestStream: GRPCAsyncRequestStream<Idb_FramebufferStreamRequest>, responseStream: GRPCAsyncResponseStreamWriter<Idb_FramebufferStreamResponse>, context: GRPCAsyncServerCallContext) async throws {
+    struct CopyFramebufferRequest {
+      let sharedMemoryName: String
+      let sharedMemoryLength: UInt64
+    }
+
     @Atomic var finished = false
-    @Atomic var copyRequestQueue: [(name: String, length: UInt64)] = []
+    @Atomic var copyFramebufferRequestQueue: [CopyFramebufferRequest] = []
 
     let streamWriter = FIFOStreamWriter(stream: responseStream)
     let consumer = FBBlockDataConsumer.synchronousDataConsumer { data in
       guard !_finished.wrappedValue else { return }
-      let copyRequest: (name: String, length: UInt64)?  = _copyRequestQueue.sync { queue in
+      let copyFramebufferRequest: CopyFramebufferRequest?  = _copyFramebufferRequestQueue.sync { queue in
         guard !queue.isEmpty else { return nil }
         return queue.removeFirst()
       }
           
-      if let copyRequest = copyRequest {
-        let bytesWritten = copyFrameToSharedMemory(data: data, sharedMemoryName: copyRequest.name, sharedMemoryLength: copyRequest.length)
+      if let copyFramebufferRequest = copyFramebufferRequest {
+          let bytesWritten = copyFrameToSharedMemory(data: data, sharedMemoryName: copyFramebufferRequest.sharedMemoryName, sharedMemoryLength: copyFramebufferRequest.sharedMemoryLength)
         let response = Idb_FramebufferStreamResponse.with {
-          $0.sharedMemoryName = copyRequest.name
+          $0.sharedMemoryName = copyFramebufferRequest.sharedMemoryName
           $0.bytesWritten = bytesWritten
         }
         do {
@@ -60,11 +65,11 @@ struct FramebufferStreamMethodHandler {
         switch request.control {
         case .stop:
           return
-        case .copyFramebuffer(let copyRequest):
-          _copyRequestQueue.sync { queue in
-            queue.append((
-              name: copyRequest.sharedMemoryName,
-              length: copyRequest.sharedMemoryLength
+        case .copyFramebuffer(let copyFramebufferRequest):
+          _copyFramebufferRequestQueue.sync { queue in
+            queue.append(CopyFramebufferRequest(
+              sharedMemoryName: copyFramebufferRequest.sharedMemoryName,
+              sharedMemoryLength: copyFramebufferRequest.sharedMemoryLength
             ))
           }
           simulatorVideoStream.pushFrame()
