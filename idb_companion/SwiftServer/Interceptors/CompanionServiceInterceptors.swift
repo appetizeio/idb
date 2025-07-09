@@ -154,6 +154,10 @@ final class CompanionServiceInterceptors: Idb_CompanionServiceServerInterceptorF
     commonInterceptors()
   }
 
+  func makeframebuffer_streamInterceptors() -> [ServerInterceptor<Idb_FramebufferStreamRequest, Idb_FramebufferStreamResponse>] {
+    commonInterceptors()
+  }
+
   func makecrash_deleteInterceptors() -> [ServerInterceptor<Idb_CrashLogQuery, Idb_CrashLogResponse>] {
     commonInterceptors()
   }

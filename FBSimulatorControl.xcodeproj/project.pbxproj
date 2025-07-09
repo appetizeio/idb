@@ -145,7 +145,7 @@
 		AA4243061C529644008ABD80 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA4243051C529644008ABD80 /* CoreVideo.framework */; };
 		AA4424CC1F4C11A9006B5E5D /* FBiOSTargetCommandForwarder.h in Headers */ = {isa = PBXBuildFile; fileRef = AA4424CA1F4C11A9006B5E5D /* FBiOSTargetCommandForwarder.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		AA4424CD1F4C11A9006B5E5D /* FBiOSTargetCommandForwarder.m in Sources */ = {isa = PBXBuildFile; fileRef = AA4424CB1F4C11A9006B5E5D /* FBiOSTargetCommandForwarder.m */; };
-		AA44AF681E792F7500185844 /* FBSimulatorVideoStream.h in Headers */ = {isa = PBXBuildFile; fileRef = AA44AF661E792F7500185844 /* FBSimulatorVideoStream.h */; };
+		AA44AF681E792F7500185844 /* FBSimulatorVideoStream.h in Headers */ = {isa = PBXBuildFile; fileRef = AA44AF661E792F7500185844 /* FBSimulatorVideoStream.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		AA44AF691E792F7500185844 /* FBSimulatorVideoStream.m in Sources */ = {isa = PBXBuildFile; fileRef = AA44AF671E792F7500185844 /* FBSimulatorVideoStream.m */; };
 		AA46BF601D6DDC6A00C41DAF /* FBTestManagerContext.h in Headers */ = {isa = PBXBuildFile; fileRef = AA46BF5E1D6DDC6A00C41DAF /* FBTestManagerContext.h */; };
 		AA46BF611D6DDC6A00C41DAF /* FBTestManagerContext.m in Sources */ = {isa = PBXBuildFile; fileRef = AA46BF5F1D6DDC6A00C41DAF /* FBTestManagerContext.m */; };

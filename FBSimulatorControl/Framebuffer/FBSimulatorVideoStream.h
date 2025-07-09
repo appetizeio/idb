@@ -40,6 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (nullable instancetype)streamWithFramebuffer:(FBFramebuffer *)framebuffer configuration:(FBVideoStreamConfiguration *)configuration logger:(id<FBControlCoreLogger>)logger;
 
+- (void)pushFrame;
 @end
 
 NS_ASSUME_NONNULL_END
