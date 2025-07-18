@@ -41,6 +41,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable instancetype)streamWithFramebuffer:(FBFramebuffer *)framebuffer configuration:(FBVideoStreamConfiguration *)configuration logger:(id<FBControlCoreLogger>)logger;
 
 - (void)pushFrame;
+
+@property (nonatomic, copy, nullable, readwrite) NSDictionary<NSString *, id> *pixelBufferAttributes;
+
 @end
 
 NS_ASSUME_NONNULL_END

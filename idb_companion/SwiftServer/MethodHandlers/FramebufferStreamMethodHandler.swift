@@ -11,6 +11,23 @@ import GRPC
 import IDBCompanionUtilities
 import IDBGRPCSwift
 
+enum FramebufferCopyError: Error, LocalizedError {
+  case missingPixelBufferAttributes
+  case missingKey(String)
+  case sharedMemoryCopyError(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .missingPixelBufferAttributes:
+      return "Pixel buffer attributes are not available"
+    case .missingKey(let key):
+      return "Pixel buffer attributes do not contain \(key)"
+    case .sharedMemoryCopyError(let description):
+      return description
+    }
+  }
+}
+
 struct FramebufferStreamMethodHandler {
 
   let target: FBiOSTarget
@@ -26,28 +43,6 @@ struct FramebufferStreamMethodHandler {
     @Atomic var finished = false
     @Atomic var copyFramebufferRequestQueue: [CopyFramebufferRequest] = []
 
-    let streamWriter = FIFOStreamWriter(stream: responseStream)
-    let consumer = FBBlockDataConsumer.synchronousDataConsumer { data in
-      guard !_finished.wrappedValue else { return }
-      let copyFramebufferRequest: CopyFramebufferRequest?  = _copyFramebufferRequestQueue.sync { queue in
-        guard !queue.isEmpty else { return nil }
-        return queue.removeFirst()
-      }
-          
-      if let copyFramebufferRequest = copyFramebufferRequest {
-          let bytesWritten = copyFrameToSharedMemory(data: data, sharedMemoryName: copyFramebufferRequest.sharedMemoryName, sharedMemoryLength: copyFramebufferRequest.sharedMemoryLength)
-        let response = Idb_FramebufferStreamResponse.with {
-          $0.sharedMemoryName = copyFramebufferRequest.sharedMemoryName
-          $0.bytesWritten = bytesWritten
-        }
-        do {
-          try streamWriter.send(response)
-        } catch {
-          _finished.set(true)
-        }
-      }
-    }
-
     let config = FBVideoStreamConfiguration(
       encoding: .BGRA,
       framesPerSecond: nil,
@@ -57,6 +52,58 @@ struct FramebufferStreamMethodHandler {
       keyFrameRate: nil
     )
     guard let simulatorVideoStream = try await BridgeFuture.value(target.createStream(with: config)) as? FBSimulatorVideoStream else { throw GRPCStatus(code: .internalError, message: "Framebuffer stream can only be used with a simulator device") };
+
+    let streamWriter = FIFOStreamWriter(stream: responseStream)
+    let consumer = FBBlockDataConsumer.synchronousDataConsumer { data in
+      guard !_finished.wrappedValue else { return }
+      guard let copyFramebufferRequest: CopyFramebufferRequest  = _copyFramebufferRequestQueue.sync(execute: { queue in
+        guard !queue.isEmpty else { return nil }
+        return queue.removeFirst()
+      }) else {
+        return
+      }
+
+      var response = Idb_FramebufferStreamResponse.with {
+        $0.sharedMemoryName = copyFramebufferRequest.sharedMemoryName
+      }
+      do {
+        guard let pixelBufferAttributes = simulatorVideoStream.pixelBufferAttributes else {
+          throw FramebufferCopyError.missingPixelBufferAttributes
+        }
+        guard let width = (pixelBufferAttributes["width"] as? NSNumber)?.uint32Value else {
+          throw FramebufferCopyError.missingKey("width")
+        }
+        guard let height = (pixelBufferAttributes["height"] as? NSNumber)?.uint32Value else {
+          throw  FramebufferCopyError.missingKey("height")
+        }
+        guard let rowSize = (pixelBufferAttributes["row_size"] as? NSNumber)?.uint32Value else {
+          throw  FramebufferCopyError.missingKey("row_size")
+        }
+        guard let frameSize = (pixelBufferAttributes["frame_size"] as? NSNumber)?.uint32Value else {
+          throw  FramebufferCopyError.missingKey("frame_size")
+        }
+        guard let format = (pixelBufferAttributes["format"] as? NSString) else {
+          throw  FramebufferCopyError.missingKey("frame_size")
+        }
+        response.framebufferInfo = Idb_FramebufferInfo.with {
+          $0.width = width
+          $0.height = height
+          $0.rowSize = rowSize
+          $0.frameSize = frameSize
+          $0.format = format as String
+        }
+        response.bytesWritten = try copyFrameToSharedMemory(data: data, sharedMemoryName: copyFramebufferRequest.sharedMemoryName, sharedMemoryLength: copyFramebufferRequest.sharedMemoryLength)
+      } catch {
+        targetLogger.error().log(error.localizedDescription)
+        response.error = error.localizedDescription
+      }
+      do {
+        try streamWriter.send(response)
+      } catch {
+        targetLogger.error().log(error.localizedDescription)
+        _finished.set(true)
+      }
+    }
 
     try await BridgeFuture.await(simulatorVideoStream.startStreaming(consumer))
 
@@ -90,12 +137,12 @@ struct FramebufferStreamMethodHandler {
     targetLogger.log("The framebuffer stream is terminated")
   }
 
-  private func copyFrameToSharedMemory(data: Data, sharedMemoryName: String, sharedMemoryLength: UInt64) -> UInt64 {
+  private func copyFrameToSharedMemory(data: Data, sharedMemoryName: String, sharedMemoryLength: UInt64) throws -> UInt64 {
     let bytesToCopy = min(UInt64(data.count), sharedMemoryLength)
-    let shmFd = shmopen(sharedMemoryName, O_RDWR, 0666)
+    let mode: UInt16 = 0666
+    let shmFd = shmopen(sharedMemoryName, O_RDWR, mode)
     if shmFd == -1 {
-      targetLogger.log("shm_open(\(sharedMemoryName), O_RDWR, 0666) failed with \(errno)")
-      return 0
+      throw FramebufferCopyError.sharedMemoryCopyError("shm_open(\(sharedMemoryName), O_RDWR, 0666) failed with \(errno)")
     }
         
     defer {
@@ -104,8 +151,7 @@ struct FramebufferStreamMethodHandler {
         
     let mappedMemory = mmap(nil, Int(sharedMemoryLength), PROT_WRITE, MAP_SHARED, shmFd, 0)
     if mappedMemory == MAP_FAILED {
-      targetLogger.log("mmap() failed with \(errno)")
-      return 0
+      throw FramebufferCopyError.sharedMemoryCopyError("mmap() failed with \(errno)")
     }
         
     defer {
