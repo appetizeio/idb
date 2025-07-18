@@ -506,9 +506,19 @@ message FramebufferStreamRequest {
     }
 }
 
+message FramebufferInfo {
+    uint32 row_size = 1;
+    uint32 width = 2;
+    uint32 height = 3;
+    uint32 frame_size = 4;
+    string format = 5;
+}
+
 message FramebufferStreamResponse {
     string shared_memory_name = 1;
-    uint64 bytes_written = 2;
+    optional uint64 bytes_written = 2;
+    optional string error = 3;
+    optional FramebufferInfo framebuffer_info = 4;
 }
 
 message LaunchRequest {

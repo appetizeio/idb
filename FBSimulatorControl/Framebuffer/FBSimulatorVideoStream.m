@@ -421,7 +421,6 @@ static void MinicapCompressorCallback(void *outputCallbackRefCon, void *sourceFr
 @property (nonatomic, assign, nullable, readwrite) CVPixelBufferRef pixelBuffer;
 @property (nonatomic, assign, readwrite) CFTimeInterval timeAtFirstFrame;
 @property (nonatomic, assign, readwrite) NSUInteger frameNumber;
-@property (nonatomic, copy, nullable, readwrite) NSDictionary<NSString *, id> *pixelBufferAttributes;
 @property (nonatomic, strong, nullable, readwrite) id<FBDataConsumer> consumer;
 @property (nonatomic, strong, nullable, readwrite) id<FBSimulatorVideoStreamFramePusher> framePusher;
 
