@@ -93,6 +93,11 @@ static const char *LoggerSubsystem = "com.facebook.fbcontrolcore";
   return self;
 }
 
+- (BOOL)isLogLevelAtLeast:(FBControlCoreLogLevel)logLevel
+{
+  return self.level >= logLevel;
+}
+
 @end
 
 #endif

@@ -75,6 +75,11 @@
   return self;
 }
 
+- (BOOL)isLogLevelAtLeast:(FBControlCoreLogLevel)logLevel
+{
+  return self.level >= logLevel;
+}
+
 @end
 
 @implementation FBCompositeLogger
@@ -136,6 +141,15 @@
 - (id<FBControlCoreLogger>)withDateFormatEnabled:(BOOL)dateFormat
 {
   return [self loggerByApplyingSelector:_cmd object:@(dateFormat)];
+}
+- (BOOL)isLogLevelAtLeast:(FBControlCoreLogLevel)logLevel
+{
+  for (id<FBControlCoreLogger> logger in self.loggers) {
+    if ([logger isLogLevelAtLeast:logLevel]) {
+        return YES;
+    }
+  }
+  return NO;
 }
 
 - (NSString *)name
@@ -262,6 +276,11 @@
     [dateFormatter setDateFormat:@"yyyy-MM-dd HH:mm:ss.SSSZZZ"];
   }
   return [[self.class alloc] initWithConsumer:self.consumer name:self.name dateFormatter:dateFormatter];
+}
+
+- (BOOL)isLogLevelAtLeast:(FBControlCoreLogLevel)logLevel
+{
+  return self.level >= logLevel;
 }
 
 @end

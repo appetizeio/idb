@@ -76,6 +76,15 @@ typedef NS_ENUM(NSUInteger, FBControlCoreLogLevel) {
  */
 - (id<FBControlCoreLogger>)withDateFormatEnabled:(BOOL)enabled;
 
+/**
+ Tests if log level is at least the log level provided via the argument, useful for composite loggers that
+ would return FBControlCoreLogLevelMultiple via the level accessor.
+ 
+ @param logLevel the log level to test
+ @return boolean indicating if the log level is equal or higher than the one provided via the argument
+ */
+- (BOOL)isLogLevelAtLeast:(FBControlCoreLogLevel)logLevel;
+
 #pragma mark Properties
 
 /**

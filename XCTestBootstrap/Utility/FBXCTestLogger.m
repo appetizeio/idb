@@ -146,6 +146,11 @@ static NSString *const xctoolOutputLogDirectoryEnv = @"XCTOOL_TEST_ENV_FB_LOG_DI
     logDirectory:self.logDirectory];
 }
 
+- (BOOL)isLogLevelAtLeast:(FBControlCoreLogLevel)logLevel
+{
+  return self.baseLogger.level >= logLevel;
+}
+
 - (NSString *)name
 {
   return self.baseLogger.name;

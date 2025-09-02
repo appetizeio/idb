@@ -81,7 +81,7 @@ static void FBSimulatorControl_SimLogHandler(int level, const char *function, in
     // Hook the default handler to call us instead.
     [FBSimulatorControlFrameworkLoader_Essential setInternalLogHandler];
     // Set CoreSimulator Logging since it is now loaded.
-    [FBSimulatorControlFrameworkLoader_Essential setCoreSimulatorLoggingEnabled:(logger.level >= FBControlCoreLogLevelDebug)];
+    [FBSimulatorControlFrameworkLoader_Essential setCoreSimulatorLoggingEnabled:[logger isLogLevelAtLeast:FBControlCoreLogLevelDebug]];
   }
   return loaded;
 }
