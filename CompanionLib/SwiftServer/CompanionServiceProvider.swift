@@ -374,6 +374,14 @@ final class CompanionServiceProvider: Idb_CompanionService.SimpleServiceProtocol
     }
   }
 
+  func framebuffer_stream(request: RPCAsyncSequence<Idb_FramebufferStreamRequest, any Error>, response: RPCWriter<Idb_FramebufferStreamResponse>, context: ServerContext) async throws {
+    let reader = RequestStreamReader(request)
+    try await trackedBidiStreaming(context) {
+      try await FramebufferStreamMethodHandler(target: target, targetLogger: targetLogger)
+        .handle(requestStream: reader, responseStream: response, context: context)
+    }
+  }
+
   func crash_delete(request: Idb_CrashLogQuery, context: ServerContext) async throws -> Idb_CrashLogResponse {
     return try await trackedUnaryCall(context, request: request) {
       try await CrashDeleteMethodHandler(commandExecutor: commandExecutor)
