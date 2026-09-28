@@ -196,7 +196,10 @@ public final class SimulatorHID: CustomStringConvertible, @unchecked Sendable {
       try await purple.sendOrientation(legacyPurpleEncoding ? orientation : orientation.physicalPurpleOrientation)
       return
     }
-    try await sendVendorEvent(orientation.vendorEvent(), on: simulator)
+    // The picker takes physical directions, so legacy interface-style values need the same swap
+    // the Purple path gets. Without it the legacy encoding silently changes meaning here.
+    let picked = legacyPurpleEncoding ? orientation.physicalPurpleOrientation : orientation
+    try await sendVendorEvent(picked.vendorEvent(), on: simulator)
   }
 
   private func sendVendorEvent(_ event: IndigoVendorDefinedEvent, on simulator: Simulator) async throws {
