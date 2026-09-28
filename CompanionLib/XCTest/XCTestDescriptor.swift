@@ -87,6 +87,9 @@ final class XCTestBootstrapDescriptor: XCTestDescriptor, CustomStringConvertible
     if request.isLogicTest {
       return
     }
+    guard request.killAllRunningApplications else {
+      return
+    }
     try await XCTestBootstrapDescriptor.killAllRunningApplications(target)
   }
 
@@ -133,7 +136,8 @@ final class XCTestBootstrapDescriptor: XCTestDescriptor, CustomStringConvertible
       arguments: request.arguments,
       logger: logger,
       processLogDirectory: logDirectoryPath,
-      waitForDebugger: request.waitForDebugger
+      waitForDebugger: request.waitForDebugger,
+      activateSuspended: request.activateSuspended
     )
     let testLaunchConfig = TestLaunchConfiguration(
       testBundle: testBundle,
@@ -151,7 +155,8 @@ final class XCTestBootstrapDescriptor: XCTestDescriptor, CustomStringConvertible
       coverageDirectoryPath: coverageConfig?.coverageDirectory,
       enableContinuousCoverageCollection: coverageConfig?.shouldEnableContinuousCoverageCollection ?? false,
       logDirectoryPath: logDirectoryPath,
-      reportResultBundle: request.collectResultBundle
+      reportResultBundle: request.collectResultBundle,
+      disableXCTestDebugLogging: request.disableXCTestDebugLogging
     )
     return IDBAppHostedTestConfiguration(testLaunchConfiguration: testLaunchConfig, coverageConfiguration: coverageConfig)
   }
@@ -239,12 +244,12 @@ final class XCodebuildTestRunDescriptor: XCTestDescriptor, CustomStringConvertib
 
 // MARK: - Private Helper
 
-private func buildAppLaunchConfig(bundleID: String, environment: [String: String], arguments: [String], logger: ControlCoreLogger, processLogDirectory: String?, waitForDebugger: Bool) async throws -> ApplicationLaunchConfiguration {
+private func buildAppLaunchConfig(bundleID: String, environment: [String: String], arguments: [String], logger: ControlCoreLogger, processLogDirectory: String?, waitForDebugger: Bool, activateSuspended: Bool? = nil) async throws -> ApplicationLaunchConfiguration {
   let stdOutConsumer = FBLoggingDataConsumer(logger: logger)
   let stdErrConsumer = FBLoggingDataConsumer(logger: logger)
 
   guard let processLogDirectory else {
-    return applicationLaunchConfiguration(bundleID: bundleID, environment: environment, arguments: arguments, waitForDebugger: waitForDebugger, stdOut: stdOutConsumer, stdErr: stdErrConsumer)
+    return applicationLaunchConfiguration(bundleID: bundleID, environment: environment, arguments: arguments, waitForDebugger: waitForDebugger, stdOut: stdOutConsumer, stdErr: stdErrConsumer, activateSuspended: activateSuspended)
   }
 
   // Both mirrors are created before either is awaited, so the two file writers are opened concurrently.
@@ -254,7 +259,7 @@ private func buildAppLaunchConfig(bundleID: String, environment: [String: String
 
   let stdOut = try await mirroredConsumer(stdOutFuture)
   let stdErr = try await mirroredConsumer(stdErrFuture)
-  return applicationLaunchConfiguration(bundleID: bundleID, environment: environment, arguments: arguments, waitForDebugger: waitForDebugger, stdOut: stdOut, stdErr: stdErr)
+  return applicationLaunchConfiguration(bundleID: bundleID, environment: environment, arguments: arguments, waitForDebugger: waitForDebugger, stdOut: stdOut, stdErr: stdErr, activateSuspended: activateSuspended)
 }
 
 private func mirroredConsumer(_ future: FBFuture<AnyObject>) async throws -> DataConsumer {
@@ -265,7 +270,7 @@ private func mirroredConsumer(_ future: FBFuture<AnyObject>) async throws -> Dat
   return consumer
 }
 
-private func applicationLaunchConfiguration(bundleID: String, environment: [String: String], arguments: [String], waitForDebugger: Bool, stdOut: DataConsumer, stdErr: DataConsumer) -> ApplicationLaunchConfiguration {
+private func applicationLaunchConfiguration(bundleID: String, environment: [String: String], arguments: [String], waitForDebugger: Bool, stdOut: DataConsumer, stdErr: DataConsumer, activateSuspended: Bool? = nil) -> ApplicationLaunchConfiguration {
   let io = FBProcessIO<AnyObject, AnyObject, AnyObject>(
     stdIn: nil,
     stdOut: FBProcessOutput<AnyObject>(for: stdOut),
@@ -278,6 +283,7 @@ private func applicationLaunchConfiguration(bundleID: String, environment: [Stri
     environment: environment,
     waitForDebugger: waitForDebugger,
     io: io,
-    launchMode: .relaunchIfRunning
+    launchMode: .relaunchIfRunning,
+    activateSuspended: activateSuspended
   )
 }

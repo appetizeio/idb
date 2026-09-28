@@ -42,7 +42,8 @@ public final class ManagedTestRunStrategy {
       timeout: configuration.timeout,
       testHostLaunchConfiguration: testHostLaunchConfiguration,
       testedApplicationAdditionalEnvironment: runnerConfiguration.testedApplicationAdditionalEnvironment,
-      testConfiguration: runnerConfiguration.testConfiguration
+      testConfiguration: runnerConfiguration.testConfiguration,
+      disableXCTestDebugLogging: configuration.disableXCTestDebugLogging
     )
 
     try await TestManagerAPIMediator.connectAndRunUntilCompletion(

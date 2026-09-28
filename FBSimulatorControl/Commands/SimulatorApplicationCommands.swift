@@ -432,6 +432,9 @@ public struct SimulatorApplicationCommands: ApplicationCommands {
     if let stdErrPath {
       options["stderr"] = stdErrPath
     }
+    if let activateSuspended = configuration.activateSuspended {
+      options["activate_suspended"] = activateSuspended
+    }
     return options
   }
 

@@ -20,12 +20,15 @@ public final class ApplicationLaunchConfiguration: ProcessLaunchConfiguration {
   @objc public let bundleName: String?
   @objc public let waitForDebugger: Bool
   public let launchMode: ApplicationLaunchMode
+  /// When set, passed as the `activate_suspended` key to `launchApplicationAsyncWithID`.
+  public let activateSuspended: Bool?
 
-  public init(bundleID: String, bundleName: String?, arguments: [String], environment: [String: String], waitForDebugger: Bool, io: FBProcessIO<AnyObject, AnyObject, AnyObject>, launchMode: ApplicationLaunchMode) {
+  public init(bundleID: String, bundleName: String?, arguments: [String], environment: [String: String], waitForDebugger: Bool, io: FBProcessIO<AnyObject, AnyObject, AnyObject>, launchMode: ApplicationLaunchMode, activateSuspended: Bool? = nil) {
     self.bundleID = bundleID
     self.bundleName = bundleName
     self.waitForDebugger = waitForDebugger
     self.launchMode = launchMode
+    self.activateSuspended = activateSuspended
     super.init(arguments: arguments, environment: environment, io: io)
   }
 
