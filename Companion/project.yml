@@ -301,8 +301,10 @@ targets:
         product: NIOPosix
       - package: swift-protobuf
         product: SwiftProtobuf
+      - sdk: Accelerate.framework
       - sdk: CoreGraphics.framework
       - sdk: Foundation.framework
+      - sdk: IOSurface.framework
 
   idb_companion:
     type: tool
@@ -378,7 +380,9 @@ targets:
         embed: false
       - target: ReplProtocol
         embed: false
+      - sdk: Accelerate.framework
       - sdk: Foundation.framework
+      - sdk: IOSurface.framework
 
   # The companion's own unit tests. Like the tools, each bundle is a link step
   # over static archives, so project-deps.yml lists the generated project's
