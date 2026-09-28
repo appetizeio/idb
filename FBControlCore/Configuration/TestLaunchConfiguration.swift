@@ -25,8 +25,9 @@ public struct TestLaunchConfiguration {
   public let shouldEnableContinuousCoverageCollection: Bool
   public let logDirectoryPath: String?
   public let reportResultBundle: Bool
+  public let disableXCTestDebugLogging: Bool
 
-  public init(testBundle: BundleDescriptor, applicationLaunchConfiguration: ApplicationLaunchConfiguration, testHostBundle: BundleDescriptor?, timeout: TimeInterval, initializeUITesting: Bool, useXcodebuild: Bool, testsToRun: Set<String>?, testsToSkip: Set<String>?, targetApplicationBundle: BundleDescriptor?, xcTestRunProperties: [String: Any]?, resultBundlePath: String?, reportActivities: Bool, coverageDirectoryPath: String?, enableContinuousCoverageCollection: Bool, logDirectoryPath: String?, reportResultBundle: Bool) {
+  public init(testBundle: BundleDescriptor, applicationLaunchConfiguration: ApplicationLaunchConfiguration, testHostBundle: BundleDescriptor?, timeout: TimeInterval, initializeUITesting: Bool, useXcodebuild: Bool, testsToRun: Set<String>?, testsToSkip: Set<String>?, targetApplicationBundle: BundleDescriptor?, xcTestRunProperties: [String: Any]?, resultBundlePath: String?, reportActivities: Bool, coverageDirectoryPath: String?, enableContinuousCoverageCollection: Bool, logDirectoryPath: String?, reportResultBundle: Bool, disableXCTestDebugLogging: Bool = false) {
     self.testBundle = testBundle
     self.applicationLaunchConfiguration = applicationLaunchConfiguration
     self.testHostBundle = testHostBundle
@@ -43,6 +44,7 @@ public struct TestLaunchConfiguration {
     self.shouldEnableContinuousCoverageCollection = enableContinuousCoverageCollection
     self.logDirectoryPath = logDirectoryPath
     self.reportResultBundle = reportResultBundle
+    self.disableXCTestDebugLogging = disableXCTestDebugLogging
   }
 }
 

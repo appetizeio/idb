@@ -198,6 +198,9 @@
 
 - (id)_XCT_logDebugMessage:(NSString *)debugMessage
 {
+  if (self.context.disableXCTestDebugLogging) {
+    return nil;
+  }
   [self.logger log:[debugMessage stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]];
   return nil;
 }

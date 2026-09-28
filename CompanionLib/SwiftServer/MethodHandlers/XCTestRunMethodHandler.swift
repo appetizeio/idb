@@ -47,6 +47,22 @@ struct XCTestRunMethodHandler {
   }
 
   func transform(value request: Idb_XctestRunRequest) -> XCTestRunRequest? {
+    guard var transformed = transformMode(value: request) else {
+      return nil
+    }
+    if request.hasKillAllRunningApplications {
+      transformed.killAllRunningApplications = request.killAllRunningApplications
+    }
+    if request.hasDisableXctestDebugLogging {
+      transformed.disableXCTestDebugLogging = request.disableXctestDebugLogging
+    }
+    if request.hasActivateSuspended {
+      transformed.activateSuspended = request.activateSuspended
+    }
+    return transformed
+  }
+
+  private func transformMode(value request: Idb_XctestRunRequest) -> XCTestRunRequest? {
     let testsToRun = request.testsToRun.isEmpty ? nil : Set(request.testsToRun)
     switch request.mode.mode {
     case .logic:

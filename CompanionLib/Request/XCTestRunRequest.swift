@@ -69,6 +69,13 @@ public struct XCTestRunRequest {
   public let collectLogs: Bool
   public let waitForDebugger: Bool
   public let collectResultBundle: Bool
+  /// Whether to kill every running application before the test host launches. Defaults to the
+  /// historical behaviour; a driver that owns the device's app state turns it off.
+  public var killAllRunningApplications: Bool = true
+  /// Whether to drop the test runner's `_XCT_logDebugMessage` traffic instead of logging it.
+  public var disableXCTestDebugLogging: Bool = false
+  /// When set, passed through to the test host's `activate_suspended` launch option.
+  public var activateSuspended: Bool?
 
   public var testBundleID: String? {
     guard case let .identifier(identifier) = bundle else { return nil }

@@ -15,19 +15,22 @@ import Foundation
   @objc public let testHostLaunchConfiguration: ApplicationLaunchConfiguration
   @objc public let testedApplicationAdditionalEnvironment: [String: String]
   @objc public let testConfiguration: FBTestConfiguration
+  @objc public let disableXCTestDebugLogging: Bool
 
   @objc public init(
     sessionIdentifier: UUID,
     timeout: TimeInterval,
     testHostLaunchConfiguration: ApplicationLaunchConfiguration,
     testedApplicationAdditionalEnvironment: [String: String],
-    testConfiguration: FBTestConfiguration
+    testConfiguration: FBTestConfiguration,
+    disableXCTestDebugLogging: Bool
   ) {
     self.sessionIdentifier = sessionIdentifier
     self.timeout = timeout
     self.testHostLaunchConfiguration = testHostLaunchConfiguration
     self.testedApplicationAdditionalEnvironment = testedApplicationAdditionalEnvironment
     self.testConfiguration = testConfiguration
+    self.disableXCTestDebugLogging = disableXCTestDebugLogging
     super.init()
   }
 
