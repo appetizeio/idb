@@ -237,6 +237,17 @@ private func awaitTargetOffline(_ target: any Target, logger: ControlCoreLogger)
   target.logger.log("Target is no longer booted, companion going offline")
 }
 
+/// The companion's own `SIMCTL_CHILD_`-prefixed variables, with the prefix stripped, to be passed
+/// into the booted simulator. Mirrors how `simctl` forwards them, which is how the Appetize
+/// simulator hooks get their `DYLD_INSERT_LIBRARIES`.
+private func simctlChildBootEnvironment() -> [String: String] {
+  let prefix = "SIMCTL_CHILD_"
+  return ProcessInfo.processInfo.environment.reduce(into: [:]) { environment, entry in
+    guard entry.key.hasPrefix(prefix) else { return }
+    environment[String(entry.key.dropFirst(prefix.count))] = entry.value
+  }
+}
+
 private func runBoot(_ udid: String, userDefaults: UserDefaults, logger: ControlCoreLogger) async throws {
   let headless = userDefaults.bool(forKey: "-headless")
   let verifyBooted = userDefaults.object(forKey: "-verify-booted") == nil ? true : userDefaults.bool(forKey: "-verify-booted")
@@ -257,7 +268,7 @@ private func runBoot(_ udid: String, userDefaults: UserDefaults, logger: Control
     logger.log("Booting \(udid) without verification")
     options.remove(.verifyUsable)
   }
-  let config = SimulatorBootConfiguration(options: options, environment: [:])
+  let config = SimulatorBootConfiguration(options: options, environment: simctlChildBootEnvironment())
   try await simulator.lifecycle.boot(config)
 
   writeTargetToStdOut(simulator)
