@@ -141,12 +141,14 @@ typedef struct {
 #define ButtonEventSourceHIDArbitrary 0x2711
 #define ButtonEventSourceSideButton 0xbb8
 #define ButtonEventSourceSiri 0x400002
+#define ButtonEventSourceSoftKeyboard 0x3f0
 
 /**
  HID Consumer page (0x0C) usages for the hardware buttons, as carried by
  ButtonEventSourceHIDArbitrary above and by dtuhidd's IndigoButtonEvent.
 
    0x30  Power          — the lock / side button
+   0xB8  Eject          — toggles the guest's software keyboard
    0x40  Menu           — the home button
    0xCD  Play/Pause
    0xCF  Voice Command  — Siri

@@ -71,7 +71,9 @@ extension SimulatorHIDButton {
     case .volumeDown:
       return .consumerUsage(page: 0x0C, code: 0xEA) // Volume Decrement
     case .eject:
-      return .consumerUsage(page: 0x0C, code: 0xB8) // Eject
+      // Eject. The legacy source is what the Indigo transport sends for it, where the Consumer
+      // usage has no equivalent.
+      return .indigoSourceAndConsumerUsage(source: Int32(ButtonEventSourceSoftKeyboard), page: 0x0C, code: 0xB8)
     }
   }
 }

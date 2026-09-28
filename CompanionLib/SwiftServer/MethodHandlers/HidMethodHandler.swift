@@ -135,6 +135,8 @@ struct HidMethodHandler {
       return .sideButton
     case .siri:
       return .siri
+    case .eject:
+      return .eject
     case .UNRECOGNIZED:
       return nil
     }

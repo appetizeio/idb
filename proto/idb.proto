@@ -688,6 +688,7 @@ message HIDEvent {
     LOCK = 2;
     SIDE_BUTTON = 3;
     SIRI = 4;
+    EJECT = 5;
   }
 
   message HIDButton {
