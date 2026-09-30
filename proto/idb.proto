@@ -70,6 +70,7 @@ service CompanionService {
       returns (stream VideoStreamResponse) {}
   rpc framebuffer_stream(stream FramebufferStreamRequest)
       returns (stream FramebufferStreamResponse) {}
+  rpc list_displays(ListDisplaysRequest) returns (ListDisplaysResponse) {}
   // Crash Operations
   rpc crash_delete(CrashLogQuery) returns (CrashLogResponse) {}
   rpc crash_list(CrashLogQuery) returns (CrashLogResponse) {}
@@ -898,17 +899,33 @@ message VideoStreamResponse {
 }
 
 message FramebufferStreamRequest {
+  // Fixes what the stream reads for its lifetime. Optional, at most once, and only
+  // before the first copy: a client allocates against the geometry it is told, so
+  // neither the display nor the scale can change under it afterwards. Answered with
+  // the selected display's geometry, so a Configure doubles as a probe.
+  //
+  // Omitted entirely, the stream reads the active integrated display unscaled --
+  // what every client did before this message existed.
+  message Configure {
+    // From `list_displays`. Unset selects the active integrated display.
+    optional string display_unique_id = 1;
+    // In (0, 1]. Unset copies at the display's own size.
+    optional float scale_factor = 2;
+  }
   message CopyFramebuffer {
     string shared_memory_name = 1;
     // A zero length asks only for the framebuffer's geometry, answered from the
     // current surface without waiting for a frame.
     uint64 shared_memory_length = 2;
+    // Superseded by Configure.scale_factor. Still honoured when no Configure was
+    // sent, where the first request naming a scale fixes it for the stream.
     optional float scale_factor = 3;
   }
   message Stop {}
   oneof control {
     CopyFramebuffer copy_framebuffer = 1;
     Stop stop = 2;
+    Configure configure = 3;
   }
 }
 
@@ -918,6 +935,29 @@ message FramebufferInfo {
   uint32 height = 3;
   uint32 frame_size = 4;
   string format = 5;
+}
+
+message ListDisplaysRequest {}
+
+// One of the simulator's displays. A foldable reports an integrated panel per
+// fold state, of which one is active; a runtime that cannot report displays
+// answers with none rather than guessing.
+message Display {
+  string unique_id = 1;
+  string name = 2;
+  // Lit and rendering. Exactly one integrated display is active at a time.
+  bool is_active = 3;
+  bool is_primary = 4;
+  // False for TVOut, CarPlay and the resizable scene display.
+  bool is_integrated = 5;
+  // Bounds in the display's own unrotated pixel space.
+  uint32 width = 6;
+  uint32 height = 7;
+  double scale = 8;
+}
+
+message ListDisplaysResponse {
+  repeated Display displays = 1;
 }
 
 message FramebufferStreamResponse {
