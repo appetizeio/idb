@@ -83,6 +83,11 @@ public final class Framebuffer: @unchecked Sendable {
   private let statsRecorder: FramebufferStatsRecorder
   private let logger: any ControlCoreLogger
 
+  /// The framebuffer of one named display, for a caller that has chosen from `displays.list()`.
+  public class func surface(for display: SimulatorDisplay, simulator: Simulator) async throws -> Framebuffer {
+    try await FramebufferSurfaceLocator.framebuffer(for: display, simulator: simulator)
+  }
+
   public class func mainScreenSurface(for simulator: Simulator, logger: any ControlCoreLogger) throws -> Framebuffer {
     let surface = try FramebufferSurfaceLocator.mainDisplaySurface(for: simulator, logger: logger)
     return Framebuffer(surface: surface, logger: logger)

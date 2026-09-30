@@ -396,6 +396,12 @@ final class CompanionServiceProvider: Idb_CompanionService.SimpleServiceProtocol
     }
   }
 
+  func list_displays(request: Idb_ListDisplaysRequest, context: ServerContext) async throws -> Idb_ListDisplaysResponse {
+    return try await trackedUnaryCall(context, request: request) {
+      try await ListDisplaysMethodHandler(target: target).handle(request: request, context: context)
+    }
+  }
+
   func crash_delete(request: Idb_CrashLogQuery, context: ServerContext) async throws -> Idb_CrashLogResponse {
     return try await trackedUnaryCall(context, request: request) {
       try await CrashDeleteMethodHandler(commandExecutor: commandExecutor)

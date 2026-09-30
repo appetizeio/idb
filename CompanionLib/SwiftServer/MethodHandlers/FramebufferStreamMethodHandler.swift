@@ -25,6 +25,9 @@ enum FramebufferStreamError: Error, LocalizedError {
   case sharedMemoryTooSmall(name: String, needed: Int, available: UInt64)
   case scaleFailed(status: Int)
   case scaleChanged(latched: Float?, requested: Float)
+  case configuredLate
+  case unknownDisplay(uniqueID: String)
+  case displaysUnavailable
 
   var errorDescription: String? {
     switch self {
@@ -42,6 +45,12 @@ enum FramebufferStreamError: Error, LocalizedError {
       return "Shared memory \(name) holds \(available) bytes, the frame needs \(needed)"
     case let .scaleFailed(status):
       return "Scaling the framebuffer failed (vImage status \(status))"
+    case .configuredLate:
+      return "The stream is already reading a display; Configure has to arrive before the first copy"
+    case let .unknownDisplay(uniqueID):
+      return "No display with unique id \(uniqueID); ask list_displays for the ones this simulator has"
+    case .displaysUnavailable:
+      return "This runtime cannot report its displays, so a display cannot be selected by id"
     case let .scaleChanged(latched, requested):
       let was = latched.map { "\($0)" } ?? "none"
       return "The stream was opened at scale \(was); a later request asked for \(requested). The scale is fixed for the life of the stream"
@@ -84,39 +93,50 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
       throw RPCError(code: .failedPrecondition, message: FramebufferStreamError.simulatorRequired(targetDescription: String(describing: target)).localizedDescription)
     }
 
-    let framebuffer = try Framebuffer.mainScreenSurface(for: simulator, logger: targetLogger)
-    let attachment = try framebuffer.attach()
-    defer { attachment.cancel() }
-
-    let state = FramebufferStreamState(surface: attachment.initialSurface)
-
-    // The request loop returns on `stop`; the frame loop runs until the attachment finishes. Whichever
-    // ends first tears the other down, so a client disconnect and a display teardown both land here.
-    let requests = Task {
-      try await readRequests(requestStream, into: state, responseStream: responseStream)
-    }
-    let frames = Task {
-      try await serviceFrames(attachment, state: state)
-    }
+    // The display is not known until a Configure names one, so the attachment is made on the first
+    // request that needs it rather than up front. A stream that never configures attaches to the
+    // active integrated display, which is what every client got before Configure existed.
+    var attached: Attached?
+    var frames: Task<Void, any Error>?
     defer {
-      requests.cancel()
-      frames.cancel()
+      frames?.cancel()
+      attached?.attachment.cancel()
     }
-    _ = try await Task.select(requests, frames).value
-  }
 
-  // MARK: - Loops
-
-  /// Reads control frames. A zero-length copy request is a geometry probe and is answered at once,
-  /// so a client can learn the frame size without waiting for the display to render.
-  private func readRequests(
-    _ requestStream: RequestStreamReader<Idb_FramebufferStreamRequest>,
-    into state: FramebufferStreamState,
-    responseStream: RPCWriter<Idb_FramebufferStreamResponse>
-  ) async throws {
     for try await request in requestStream {
       switch request.control {
+      case let .configure(configure):
+        guard attached == nil else {
+          try await responseStream.send(
+            Self.failure(FramebufferStreamError.configuredLate, sharedMemoryName: ""))
+          continue
+        }
+        do {
+          let established = try await attach(
+            simulator: simulator,
+            displayUniqueID: configure.hasDisplayUniqueID ? configure.displayUniqueID : nil,
+            scaleFactor: configure.hasScaleFactor ? configure.scaleFactor : nil)
+          attached = established
+          frames = Task { try await serviceFrames(established.attachment, state: established.state) }
+          // Answered with the chosen display's geometry, so Configure doubles as a probe.
+          try await responseStream.send(
+            await probeResponse(for: .init(), state: established.state))
+        } catch {
+          try await responseStream.send(Self.failure(error, sharedMemoryName: ""))
+        }
+
       case let .copyFramebuffer(copy):
+        if attached == nil {
+          do {
+            let established = try await attach(simulator: simulator, displayUniqueID: nil, scaleFactor: nil)
+            attached = established
+            frames = Task { try await serviceFrames(established.attachment, state: established.state) }
+          } catch {
+            try await responseStream.send(Self.failure(error, sharedMemoryName: copy.sharedMemoryName))
+            continue
+          }
+        }
+        guard let state = attached?.state else { continue }
         guard copy.sharedMemoryLength > 0 else {
           try await responseStream.send(await probeResponse(for: copy, state: state))
           continue
@@ -124,11 +144,57 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
         // Answered from the current surface rather than on the next rendered frame: a client pulls
         // when it wants a frame, and a still display renders none to wait for.
         try await responseStream.send(await copyResponse(for: copy, state: state))
+
       case .stop, .none:
         return
       }
     }
   }
+
+  /// A stream's display, once chosen.
+  private struct Attached {
+    let attachment: FramebufferAttachment
+    let state: FramebufferStreamState
+  }
+
+  /// Resolves the display and attaches to it.
+  ///
+  /// Without an id this is the active integrated display -- the lit panel, which on a foldable is the
+  /// one the user is looking at. A runtime too old to report displays falls back to the main-screen
+  /// heuristic, which is all that was ever available there.
+  private func attach(
+    simulator: Simulator, displayUniqueID: String?, scaleFactor: Float?
+  ) async throws -> Attached {
+    let framebuffer: Framebuffer
+    if let displayUniqueID {
+      guard let displays = try? await simulator.displays.list() else {
+        throw FramebufferStreamError.displaysUnavailable
+      }
+      guard let display = displays.first(where: { $0.uniqueID == displayUniqueID }) else {
+        throw FramebufferStreamError.unknownDisplay(uniqueID: displayUniqueID)
+      }
+      framebuffer = try await Framebuffer.surface(for: display, simulator: simulator)
+    } else if let active = try await simulator.displays.activeIntegratedDisplayIfSupported() {
+      framebuffer = try await Framebuffer.surface(for: active, simulator: simulator)
+    } else {
+      framebuffer = try Framebuffer.mainScreenSurface(for: simulator, logger: targetLogger)
+    }
+    let attachment = try framebuffer.attach()
+    let state = FramebufferStreamState(surface: attachment.initialSurface)
+    if let scaleFactor {
+      _ = try state.scale(requesting: scaleFactor)
+    }
+    return Attached(attachment: attachment, state: state)
+  }
+
+  private static func failure(_ error: any Error, sharedMemoryName: String) -> Idb_FramebufferStreamResponse {
+    Idb_FramebufferStreamResponse.with {
+      $0.sharedMemoryName = sharedMemoryName
+      $0.error = error.localizedDescription
+    }
+  }
+
+  // MARK: - Loops
 
   /// Tracks the surface the display currently holds, and ends when the display tears down.
   private func serviceFrames(
