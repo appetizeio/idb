@@ -58,13 +58,30 @@ private struct FramebufferGeometry {
 
   var frameSize: Int { rowSize * height }
 
-  var proto: Idb_FramebufferInfo {
+  func proto(configuration: SimulatorDisplayConfiguration?) -> Idb_FramebufferInfo {
     Idb_FramebufferInfo.with {
       $0.width = UInt32(width)
       $0.height = UInt32(height)
       $0.rowSize = UInt32(rowSize)
       $0.frameSize = UInt32(frameSize)
       $0.format = format
+      guard let configuration else { return }
+      $0.configurationGeneration = configuration.generation
+      if case let .identified(display) = configuration.active {
+        $0.displayUniqueID = display.uniqueID
+        $0.rotation = Idb_DisplayRotation(display.rotation)
+      }
+    }
+  }
+}
+
+extension Idb_DisplayRotation {
+  init(_ rotation: SimulatorDisplayRotation) {
+    switch rotation {
+    case .upright: self = .rot0
+    case .clockwise: self = .rot90
+    case .upsideDown: self = .rot180
+    case .counterclockwise: self = .rot270
     }
   }
 }
@@ -84,7 +101,8 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
       throw RPCError(code: .failedPrecondition, message: FramebufferStreamError.simulatorRequired(targetDescription: String(describing: target)).localizedDescription)
     }
 
-    let framebuffer = try Framebuffer.mainScreenSurface(for: simulator, logger: targetLogger)
+    // Follows the active display, so a foldable's stream moves between its panels.
+    let framebuffer = try await simulator.framebuffer.connect()
     let attachment = try framebuffer.attach()
     defer { attachment.cancel() }
 
@@ -130,7 +148,8 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
     }
   }
 
-  /// Tracks the surface the display currently holds, and ends when the display tears down.
+  /// Tracks the surface and display configuration the stream reads, and ends when the display tears
+  /// down or the framebuffer stops capturing it.
   private func serviceFrames(
     _ attachment: FramebufferAttachment,
     state: FramebufferStreamState
@@ -140,8 +159,13 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
       switch event {
       case let .surfaceChanged(surface):
         state.surface = surface
+      case let .configurationChanged(configuration):
+        state.configuration = configuration
       case .frameRendered:
         continue
+      case let .ended(error):
+        targetLogger.log("Framebuffer stream ended: \(error)")
+        return
       }
     }
   }
@@ -155,7 +179,7 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
       do {
         guard let surface = awaited else { throw FramebufferStreamError.noSurface }
         let scale = try state.scale(requesting: copy.hasScaleFactor ? copy.scaleFactor : nil)
-        $0.framebufferInfo = Self.geometry(of: surface, scaleFactor: scale).proto
+        $0.framebufferInfo = Self.geometry(of: surface, scaleFactor: scale).proto(configuration: state.configuration)
       } catch {
         $0.error = error.localizedDescription
       }
@@ -176,7 +200,7 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
           capacity: copy.sharedMemoryLength,
           geometry: geometry)
         $0.bytesWritten = UInt64(written)
-        $0.framebufferInfo = geometry.proto
+        $0.framebufferInfo = geometry.proto(configuration: state.configuration)
       } catch {
         $0.error = error.localizedDescription
       }
@@ -263,6 +287,7 @@ private final class FramebufferStreamState: @unchecked Sendable {
 
   private let lock = NSLock()
   private var currentSurface: IOSurface?
+  private var currentConfiguration: SimulatorDisplayConfiguration?
   private var surfaceWaiters: [CheckedContinuation<IOSurface?, Never>] = []
   private var finished = false
   private var scaleLatched = false
@@ -283,6 +308,12 @@ private final class FramebufferStreamState: @unchecked Sendable {
       }
       for waiter in waiting { waiter.resume(returning: newValue) }
     }
+  }
+
+  /// The display configuration the framebuffer last reported. Nil while it reads the main screen.
+  var configuration: SimulatorDisplayConfiguration? {
+    get { lock.withLock { currentConfiguration } }
+    set { lock.withLock { currentConfiguration = newValue } }
   }
 
   /// The display's current surface, waiting for its first one when it has none yet.

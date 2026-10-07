@@ -963,6 +963,20 @@ message FramebufferInfo {
   uint32 height = 3;
   uint32 frame_size = 4;
   string format = 5;
+  // The display the frame was read from, and its interface rotation relative to the frame. Unset
+  // while the stream reads the main screen because no display can be identified.
+  optional string display_unique_id = 6;
+  optional DisplayRotation rotation = 7;
+  // The display configuration the frame belongs to; it increases when the active display, or any
+  // display's geometry or rotation, changes.
+  optional uint64 configuration_generation = 8;
+}
+
+enum DisplayRotation {
+  ROT0 = 0;
+  ROT90 = 1;
+  ROT180 = 2;
+  ROT270 = 3;
 }
 
 message FramebufferStreamResponse {
