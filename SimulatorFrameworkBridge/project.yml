@@ -81,13 +81,15 @@ targets:
   SimulatorFrameworkBridge-iOS:
     templates: [Guest]
     platform: iOS
+    # Listed rather than `.`: XcodeGen 2.46 puts a spec-directory source's subgroups in two groups,
+    # which Xcode 27.2 refuses to open (yonaskolb/XcodeGen#1651).
+    # Switch back to `path: .` once https://github.com/yonaskolb/XcodeGen/pull/1652 ships.
     sources:
-      - path: .
-        excludes:
-          - "**/*.entitlements"
-          - "**/*.xcodeproj"
-          - "project.yml"
-          - "Build"
+      - path: Runtime
+      - path: Swift
+      - path: SimulatorFrameworkBridge.swift
+      - path: SimulatorFrameworkBridge-Bridging-Header.h
+      - path: Privacy.md
     settings:
       base:
         SDKROOT: iphonesimulator
@@ -102,13 +104,15 @@ targets:
   SimulatorFrameworkBridge-tvOS:
     templates: [Guest]
     platform: tvOS
+    # Listed rather than `.`: XcodeGen 2.46 puts a spec-directory source's subgroups in two groups,
+    # which Xcode 27.2 refuses to open (yonaskolb/XcodeGen#1651).
+    # Switch back to `path: .` once https://github.com/yonaskolb/XcodeGen/pull/1652 ships.
     sources:
-      - path: .
-        excludes:
-          - "**/*.entitlements"
-          - "**/*.xcodeproj"
-          - "project.yml"
-          - "Build"
+      - path: Runtime
+      - path: Swift
+      - path: SimulatorFrameworkBridge.swift
+      - path: SimulatorFrameworkBridge-Bridging-Header.h
+      - path: Privacy.md
     settings:
       base:
         SDKROOT: appletvsimulator
