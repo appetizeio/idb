@@ -127,22 +127,33 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
     _ = try await Task.select(requests, frames).value
   }
 
-  /// Waits while the simulator cannot say which of its displays is lit, as a multi-display simulator shortly after
-  /// boot reports their activity as unknown, or not at all; connecting then would capture the main screen without
-  /// following the active display. Waits until a configuration names the display interactions target, leaving
-  /// how long is too long to the client. Single-display simulators resolve at once and do not wait.
+  /// Waits until the simulator can say which of its displays is lit. Shortly after boot a multi-display simulator
+  /// reports their activity as unknown, or not at all, and then passes through a transition that can outlast the
+  /// settling connecting allows; connecting before then captures the main screen without following the active
+  /// display. Waits for a settled configuration that names the display interactions target, leaving how long is
+  /// too long to the client. Single-display simulators, and runtimes that do not report displays, do not wait.
   private func awaitDisplayActivity(of simulator: Simulator) async {
     switch try? await simulator.displays.resolveDisplay() {
-    case .fallback(.unknownActivity):
-      break
-    case let .fallback(.legacyIntegratedDisplays(count)) where count > 1:
-      break
-    default:
+    case .target?, .fallback(.unreadable)?:
       return
+    case let .fallback(.legacyIntegratedDisplays(count))? where count <= 1:
+      return
+    default:
+      // unknown activity, several displays without activity, a transition, or no single active display
+      break
     }
     targetLogger.log("Waiting for the simulator to report which display is lit")
-    for await configuration in simulator.displays.followConfigurations() where configuration.active != .unknown {
+    for await configuration in simulator.displays.followConfigurations() where Self.namesActiveDisplay(configuration) {
       return
+    }
+  }
+
+  /// A settled configuration whose active display connecting can resolve, rather than fall back from.
+  private static func namesActiveDisplay(_ configuration: SimulatorDisplayConfiguration) -> Bool {
+    guard configuration.phase == .settled else { return false }
+    switch configuration.active {
+    case .identified, .unidentified: return true
+    case .unresolved, .unknown: return false
     }
   }
 
