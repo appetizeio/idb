@@ -127,12 +127,19 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
     _ = try await Task.select(requests, frames).value
   }
 
-  /// Waits while the simulator reports a display's activity as unknown, as a multi-display simulator does shortly
-  /// after boot; connecting then would capture the main screen without following the active display. Waits until
-  /// a configuration names the display interactions target, leaving how long is too long to the client.
-  /// Runtimes that never report activity, and single-display simulators, resolve at once and do not wait.
+  /// Waits while the simulator cannot say which of its displays is lit, as a multi-display simulator shortly after
+  /// boot reports their activity as unknown, or not at all; connecting then would capture the main screen without
+  /// following the active display. Waits until a configuration names the display interactions target, leaving
+  /// how long is too long to the client. Single-display simulators resolve at once and do not wait.
   private func awaitDisplayActivity(of simulator: Simulator) async {
-    guard case .fallback(.unknownActivity) = try? await simulator.displays.resolveDisplay() else { return }
+    switch try? await simulator.displays.resolveDisplay() {
+    case .fallback(.unknownActivity):
+      break
+    case let .fallback(.legacyIntegratedDisplays(count)) where count > 1:
+      break
+    default:
+      return
+    }
     targetLogger.log("Waiting for the simulator to report which display is lit")
     for await configuration in simulator.displays.followConfigurations() where configuration.active != .unknown {
       return
