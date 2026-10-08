@@ -58,13 +58,30 @@ private struct FramebufferGeometry {
 
   var frameSize: Int { rowSize * height }
 
-  var proto: Idb_FramebufferInfo {
+  func proto(configuration: SimulatorDisplayConfiguration?) -> Idb_FramebufferInfo {
     Idb_FramebufferInfo.with {
       $0.width = UInt32(width)
       $0.height = UInt32(height)
       $0.rowSize = UInt32(rowSize)
       $0.frameSize = UInt32(frameSize)
       $0.format = format
+      guard let configuration else { return }
+      $0.configurationGeneration = configuration.generation
+      if case let .identified(display) = configuration.active {
+        $0.displayUniqueID = display.uniqueID
+        $0.rotation = Idb_DisplayRotation(display.rotation)
+      }
+    }
+  }
+}
+
+extension Idb_DisplayRotation {
+  init(_ rotation: SimulatorDisplayRotation) {
+    switch rotation {
+    case .upright: self = .rot0
+    case .clockwise: self = .rot90
+    case .upsideDown: self = .rot180
+    case .counterclockwise: self = .rot270
     }
   }
 }
@@ -84,7 +101,12 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
       throw RPCError(code: .failedPrecondition, message: FramebufferStreamError.simulatorRequired(targetDescription: String(describing: target)).localizedDescription)
     }
 
-    let framebuffer = try Framebuffer.mainScreenSurface(for: simulator, logger: targetLogger)
+    // Follows the active display, so a foldable's stream moves between its panels.
+    // Ends with the RPC, so a client that gives up does not leave the wait running.
+    try await withRPCCancellation(context.cancellation) {
+      await awaitDisplayActivity(of: simulator)
+    }
+    let framebuffer = try await simulator.framebuffer.connect()
     let attachment = try framebuffer.attach()
     defer { attachment.cancel() }
 
@@ -103,6 +125,36 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
       frames.cancel()
     }
     _ = try await Task.select(requests, frames).value
+  }
+
+  /// Waits until the simulator can say which of its displays is lit. Shortly after boot a multi-display simulator
+  /// reports their activity as unknown, or not at all, and then passes through a transition that can outlast the
+  /// settling connecting allows; connecting before then captures the main screen without following the active
+  /// display. Waits for a settled configuration that names the display interactions target, leaving how long is
+  /// too long to the client. Single-display simulators, and runtimes that do not report displays, do not wait.
+  private func awaitDisplayActivity(of simulator: Simulator) async {
+    switch try? await simulator.displays.resolveDisplay() {
+    case .target?, .fallback(.unreadable)?:
+      return
+    case let .fallback(.legacyIntegratedDisplays(count))? where count <= 1:
+      return
+    default:
+      // unknown activity, several displays without activity, a transition, or no single active display
+      break
+    }
+    targetLogger.log("Waiting for the simulator to report which display is lit")
+    for await configuration in simulator.displays.followConfigurations() where Self.namesActiveDisplay(configuration) {
+      return
+    }
+  }
+
+  /// A settled configuration whose active display connecting can resolve, rather than fall back from.
+  private static func namesActiveDisplay(_ configuration: SimulatorDisplayConfiguration) -> Bool {
+    guard configuration.phase == .settled else { return false }
+    switch configuration.active {
+    case .identified, .unidentified: return true
+    case .unresolved, .unknown: return false
+    }
   }
 
   // MARK: - Loops
@@ -130,7 +182,8 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
     }
   }
 
-  /// Tracks the surface the display currently holds, and ends when the display tears down.
+  /// Tracks the surface and display configuration the stream reads, and ends when the display tears
+  /// down or the framebuffer stops capturing it.
   private func serviceFrames(
     _ attachment: FramebufferAttachment,
     state: FramebufferStreamState
@@ -140,7 +193,9 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
       switch event {
       case let .surfaceChanged(surface):
         state.surface = surface
-      case .frameRendered, .configurationChanged:
+      case let .configurationChanged(configuration):
+        state.configuration = configuration
+      case .frameRendered:
         continue
       case let .ended(error):
         targetLogger.log("Framebuffer stream ended: \(error)")
@@ -158,7 +213,7 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
       do {
         guard let surface = awaited else { throw FramebufferStreamError.noSurface }
         let scale = try state.scale(requesting: copy.hasScaleFactor ? copy.scaleFactor : nil)
-        $0.framebufferInfo = Self.geometry(of: surface, scaleFactor: scale).proto
+        $0.framebufferInfo = Self.geometry(of: surface, scaleFactor: scale).proto(configuration: state.configuration)
       } catch {
         $0.error = error.localizedDescription
       }
@@ -179,7 +234,7 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
           capacity: copy.sharedMemoryLength,
           geometry: geometry)
         $0.bytesWritten = UInt64(written)
-        $0.framebufferInfo = geometry.proto
+        $0.framebufferInfo = geometry.proto(configuration: state.configuration)
       } catch {
         $0.error = error.localizedDescription
       }
@@ -266,6 +321,7 @@ private final class FramebufferStreamState: @unchecked Sendable {
 
   private let lock = NSLock()
   private var currentSurface: IOSurface?
+  private var currentConfiguration: SimulatorDisplayConfiguration?
   private var surfaceWaiters: [CheckedContinuation<IOSurface?, Never>] = []
   private var finished = false
   private var scaleLatched = false
@@ -286,6 +342,12 @@ private final class FramebufferStreamState: @unchecked Sendable {
       }
       for waiter in waiting { waiter.resume(returning: newValue) }
     }
+  }
+
+  /// The display configuration the framebuffer last reported. Nil while it reads the main screen.
+  var configuration: SimulatorDisplayConfiguration? {
+    get { lock.withLock { currentConfiguration } }
+    set { lock.withLock { currentConfiguration = newValue } }
   }
 
   /// The display's current surface, waiting for its first one when it has none yet.
