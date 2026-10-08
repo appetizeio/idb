@@ -102,6 +102,10 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
     }
 
     // Follows the active display, so a foldable's stream moves between its panels.
+    // Ends with the RPC, so a client that gives up does not leave the wait running.
+    try await withRPCCancellation(context.cancellation) {
+      await awaitDisplayActivity(of: simulator)
+    }
     let framebuffer = try await simulator.framebuffer.connect()
     let attachment = try framebuffer.attach()
     defer { attachment.cancel() }
@@ -121,6 +125,18 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
       frames.cancel()
     }
     _ = try await Task.select(requests, frames).value
+  }
+
+  /// Waits while the simulator reports a display's activity as unknown, as a multi-display simulator does shortly
+  /// after boot; connecting then would capture the main screen without following the active display. Waits until
+  /// a configuration names the display interactions target, leaving how long is too long to the client.
+  /// Runtimes that never report activity, and single-display simulators, resolve at once and do not wait.
+  private func awaitDisplayActivity(of simulator: Simulator) async {
+    guard case .fallback(.unknownActivity) = try? await simulator.displays.resolveDisplay() else { return }
+    targetLogger.log("Waiting for the simulator to report which display is lit")
+    for await configuration in simulator.displays.followConfigurations() where configuration.active != .unknown {
+      return
+    }
   }
 
   // MARK: - Loops
