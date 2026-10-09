@@ -945,9 +945,8 @@ message VideoStreamResponse {
 message FramebufferStreamRequest {
   message CopyFramebuffer {
     string shared_memory_name = 1;
-    // A zero length asks only for the framebuffer's geometry, answered from the
-    // current surface without waiting for a frame.
     uint64 shared_memory_length = 2;
+    // Fixed by the first copy that names one, for the life of the stream.
     optional float scale_factor = 3;
   }
   message Stop {}
@@ -963,13 +962,6 @@ message FramebufferInfo {
   uint32 height = 3;
   uint32 frame_size = 4;
   string format = 5;
-  // The display the frame was read from, and its interface rotation relative to the frame. Unset
-  // while the stream reads the main screen because no display can be identified.
-  optional string display_unique_id = 6;
-  optional DisplayRotation rotation = 7;
-  // The display configuration the frame belongs to; it increases when the active display, or any
-  // display's geometry or rotation, changes.
-  optional uint64 configuration_generation = 8;
 }
 
 enum DisplayRotation {
@@ -979,11 +971,38 @@ enum DisplayRotation {
   ROT270 = 3;
 }
 
+// A display a framebuffer stream can read frames from.
+message FramebufferDisplay {
+  // Empty when the runtime does not identify its displays.
+  string unique_id = 1;
+  bool active = 2;
+  // Frames are read from this display.
+  bool captured = 3;
+  // Pixels of the unrotated panel, as frames are read from it.
+  uint32 width = 4;
+  uint32 height = 5;
+  optional double scale = 6;
+  // The interface rotation relative to the frame.
+  optional DisplayRotation rotation = 7;
+}
+
+// The displays a framebuffer stream reads from. Sent before the first frame and whenever they change;
+// every frame sent after it is read from its captured display.
+message FramebufferDisplays {
+  // The active display is moving away from the captured one, whose frames may be dark until the next
+  // FramebufferDisplays.
+  bool switching = 1;
+  repeated FramebufferDisplay displays = 2;
+}
+
 message FramebufferStreamResponse {
+  // A copy's response sets these.
   string shared_memory_name = 1;
   optional uint64 bytes_written = 2;
   optional string error = 3;
   optional FramebufferInfo framebuffer_info = 4;
+  // Sent unrequested, between copy responses.
+  optional FramebufferDisplays displays = 5;
 }
 
 message LaunchRequest {
