@@ -46,7 +46,7 @@ struct HidMethodHandler {
   }
 
   /// The trailer `panel_hid` ends with, alongside `ABORTED`, when the display it bound changes.
-  static let closeReasonKey = "appetize-hid-close-reason"
+  static let closeReasonKey = "hid-close-reason"
   static let displayChangedReason = "display-changed"
 
   private func send<S: AsyncSequence>(events: S) async throws where S.Element == SimulatorHIDEvent {
