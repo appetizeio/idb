@@ -358,14 +358,25 @@ private struct FramebufferStreamState {
       if let incoming {
         captured = incoming
         self.incoming = nil
+      } else if let surface, let owner = soleDisplay(sized: surface), owner != captured {
+        // The surface moved before a configuration named its display.
+        captured = owner
       }
     case let .configurationChanged(configuration):
       self.configuration = configuration
-      guard case let .identified(active) = configuration.active else { return }
-      if let captured {
-        incoming = active.uniqueID == captured ? nil : active.uniqueID
+      // A transition names the display the layout moved to, which a following framebuffer moves to straight away.
+      let target: String
+      if case let .transitioning(incoming?) = configuration.phase {
+        target = incoming.uniqueID
+      } else if case let .identified(active) = configuration.active {
+        target = active.uniqueID
       } else {
-        captured = active.uniqueID
+        return
+      }
+      if let captured {
+        incoming = target == captured ? nil : target
+      } else {
+        captured = target
       }
     case .frameRendered:
       return
@@ -385,6 +396,13 @@ private struct FramebufferStreamState {
     guard displays != announced else { return nil }
     announced = displays
     return displays
+  }
+
+  /// The one integrated display whose surface is the size of `surface`, if exactly one is.
+  private func soleDisplay(sized surface: IOSurface) -> String? {
+    let size = CGSize(width: IOSurfaceGetWidth(surface), height: IOSurfaceGetHeight(surface))
+    let matching = configuration?.displays.filter { $0.isIntegrated && $0.geometry.surfacePixelSize == size } ?? []
+    return matching.count == 1 ? matching[0].uniqueID : nil
   }
 
   /// The integrated displays, or the surface alone on runtimes that do not identify their displays.
