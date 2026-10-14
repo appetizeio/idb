@@ -533,9 +533,9 @@ public final class IDBCommandExecutor {
     try await hid.send(events: events, logger: logger)
   }
 
-  /// As `hid(events:)`, with touch points as fractions of the unrotated panel.
+  /// As `hid(events:)`, with touch points as fractions of the unrotated panel, rebinding on a display change.
   public func panel_hid<S: AsyncSequence>(events: S) async throws where S.Element == SimulatorHIDEvent {
-    try await connectToHID().panel().send(events: events, logger: logger)
+    try await connectToHID().panel().sendRebinding(events: events, logger: logger)
   }
 
   public func set_hardware_keyboard_enabled(_ enabled: Bool) async throws {
