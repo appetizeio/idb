@@ -21,10 +21,12 @@ struct HidMethodHandler {
   }
 
   let commandExecutor: IDBCommandExecutor
+  /// Touch points are fractions of the unrotated panel, as `panel_hid` takes them.
+  var panel = false
 
   func handle(requestStream: RequestStreamReader<Idb_HIDEvent>, context: ServerContext) async throws -> Idb_HIDResponse {
     try await withRPCCancellation(context.cancellation) {
-      try await commandExecutor.hid(
+      try await send(
         events: requestStream.compactMap { message -> SimulatorHIDEvent? in
           switch try Self.request(from: message) {
           case let .input(event):
@@ -41,6 +43,14 @@ struct HidMethodHandler {
         })
     }
     return .init()
+  }
+
+  private func send<S: AsyncSequence>(events: S) async throws where S.Element == SimulatorHIDEvent {
+    if panel {
+      try await commandExecutor.panel_hid(events: events)
+    } else {
+      try await commandExecutor.hid(events: events)
+    }
   }
 
   static func request(from request: Idb_HIDEvent) throws -> Request {

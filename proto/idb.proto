@@ -35,6 +35,10 @@ service CompanionService {
   rpc set_orientation(SetOrientationRequest) returns (SetOrientationResponse) {}
   rpc hinge_angle(HingeAngleRequest) returns (HingeAngleResponse) {}
   rpc hid(stream HIDEvent) returns (HIDResponse) {}
+  // As `hid`, with touch and swipe points as fractions (0 to 1) of the
+  // unrotated panel, so the interface rotation neither moves a touch nor
+  // ends the stream.
+  rpc panel_hid(stream HIDEvent) returns (HIDResponse) {}
   rpc open_url(OpenUrlRequest) returns (OpenUrlRequest) {}
   rpc set_location(SetLocationRequest) returns (SetLocationResponse) {}
   rpc send_notification(SendNotificationRequest)
