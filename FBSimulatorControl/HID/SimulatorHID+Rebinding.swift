@@ -10,10 +10,10 @@ import Foundation
 
 extension SimulatorHID {
 
-  /// Sends `events` as operations one after another, each binding the display at its first touch. A display change
-  /// between gestures starts the next operation with the event it failed, which was not delivered; one during a
-  /// gesture releases the gesture's contacts, and its remaining touches are dropped. A composite is never re-sent,
-  /// as part of it may have been delivered.
+  /// Sends `events` as operations one after another, each binding the display at its first touch. When a display
+  /// change fails an operation, which releases its contacts, the next one starts with the event it failed, which was
+  /// not delivered: a touch lands on the new display, as a finger still on the glass would. A failed touch up or
+  /// composite is not resent, as there is no contact left to lift and part of a composite may have been delivered.
   public func sendRebinding<S: AsyncSequence>(events: S, logger: ControlCoreLogger) async throws
   where S.Element == SimulatorHIDEvent {
     let source = RebindingSource(events.makeAsyncIterator())
@@ -26,7 +26,7 @@ extension SimulatorHID {
         case .finished: return
         case .failedAgain: throw SimulatorDisplayError.changed
         case .resending: logger.log("Display changed, rebinding the HID stream and resending the event it failed")
-        case .dropping: logger.log("Display changed during a gesture, rebinding the HID stream without the rest of it")
+        case .skipping: logger.log("Display changed, rebinding the HID stream without the event it failed")
         }
       }
     }
@@ -40,11 +40,10 @@ final class RebindingSource<Base: AsyncIteratorProtocol>: @unchecked Sendable wh
   enum Rebinding {
     /// Every event was delivered; the change was seen as the operation finished.
     case finished
-    /// The event re-sent after a change failed on another before it was delivered.
+    /// The resent event failed on another change before it was delivered.
     case failedAgain
     case resending
-    /// The change came during a gesture, or a composite that may have been delivered in part.
-    case dropping
+    case skipping
   }
 
   struct Operation: AsyncSequence {
@@ -61,13 +60,9 @@ final class RebindingSource<Base: AsyncIteratorProtocol>: @unchecked Sendable wh
 
   private var base: Base
   private var replay: SimulatorHIDEvent?
-  /// The last event handed out, and whether a contact was held before it.
-  private var last: (event: SimulatorHIDEvent, touchingBefore: Bool)?
-  private var touching = false
-  private var dropping = false
+  /// The last event handed out, and whether it was a resend.
+  private var last: (event: SimulatorHIDEvent, resent: Bool)?
   private var ended = false
-  private var startedWithReplay = false
-  private var handedOut = 0
 
   init(_ base: Base) {
     self.base = base
@@ -76,57 +71,27 @@ final class RebindingSource<Base: AsyncIteratorProtocol>: @unchecked Sendable wh
   func next() async throws -> SimulatorHIDEvent? {
     if let event = replay {
       replay = nil
-      startedWithReplay = true
-      return handOut(event)
+      last = (event, true)
+      return event
     }
-    while let event = try await base.next() {
-      guard dropping, Self.hasTouches(event) else { return handOut(event) }
-      touching = Self.touching(after: event, from: touching)
-      dropping = touching
+    guard let event = try await base.next() else {
+      ended = true
+      return nil
     }
-    ended = true
-    return nil
+    last = (event, false)
+    return event
   }
 
   /// After an operation failed on a display change, readies the next operation.
   func rebind() -> Rebinding {
-    defer {
-      handedOut = 0
-      startedWithReplay = false
-    }
     if ended { return .finished }
-    guard let last else { return .failedAgain }
-    if startedWithReplay, handedOut == 1 { return .failedAgain }
-    if !last.touchingBefore, last.event.subEvents == nil {
+    guard let last, !last.resent else { return .failedAgain }
+    switch last.event {
+    case .touch(.up, _, _, _), .twoFingerTouch(.up, _, _), .composite:
+      return .skipping
+    case .touch, .twoFingerTouch, .button, .remoteButton, .keyboard, .trackpad, .delay:
       replay = last.event
-      touching = last.touchingBefore
       return .resending
-    }
-    // The failed operation released the gesture's contacts; drop the rest of it.
-    dropping = touching
-    return .dropping
-  }
-
-  private func handOut(_ event: SimulatorHIDEvent) -> SimulatorHIDEvent {
-    last = (event, touching)
-    touching = Self.touching(after: event, from: touching)
-    handedOut += 1
-    return event
-  }
-
-  private static func touching(after event: SimulatorHIDEvent, from touching: Bool) -> Bool {
-    switch event {
-    case let .touch(direction, _, _, _), let .twoFingerTouch(direction, _, _): direction == .down
-    case let .composite(events): events.reduce(touching) { Self.touching(after: $1, from: $0) }
-    case .button, .remoteButton, .keyboard, .trackpad, .delay: touching
-    }
-  }
-
-  private static func hasTouches(_ event: SimulatorHIDEvent) -> Bool {
-    switch event {
-    case .touch, .twoFingerTouch: true
-    case let .composite(events): events.contains(where: hasTouches)
-    case .button, .remoteButton, .keyboard, .trackpad, .delay: false
     }
   }
 }
