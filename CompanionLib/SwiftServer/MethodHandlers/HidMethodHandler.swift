@@ -45,11 +45,26 @@ struct HidMethodHandler {
     return .init()
   }
 
+  /// The trailer `panel_hid` ends with, alongside `ABORTED`, when the display it bound changes.
+  static let closeReasonKey = "appetize-hid-close-reason"
+  static let displayChangedReason = "display-changed"
+
   private func send<S: AsyncSequence>(events: S) async throws where S.Element == SimulatorHIDEvent {
-    if panel {
-      try await commandExecutor.panel_hid(events: events)
-    } else {
+    guard panel else {
       try await commandExecutor.hid(events: events)
+      return
+    }
+    do {
+      try await commandExecutor.panel_hid(events: events)
+    } catch let error as SimulatorDisplayError {
+      switch error {
+      case .changed, .transitioning:
+        throw RPCError(
+          code: .aborted, message: "\(error.localizedDescription); open a new panel_hid stream",
+          metadata: [Self.closeReasonKey: "\(Self.displayChangedReason)"])
+      case .noActiveIntegratedDisplay, .ambiguousActiveDisplays, .screensNotReported:
+        throw error
+      }
     }
   }
 
