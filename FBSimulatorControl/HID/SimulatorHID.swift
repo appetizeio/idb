@@ -69,6 +69,11 @@ public final class SimulatorHID: CustomStringConvertible, Sendable {
     await close.value
   }
 
+  /// This HID's connection and lease, taking touch points in the unrotated panel.
+  public func unrotated() -> SimulatorHID {
+    SimulatorHID(transport: transport, operationLease: operationLease, displays: displays.map(UprightDisplayCommands.init), logging: logging)
+  }
+
   // MARK: - Input transport
 
   /// Drains the transport so `dtuhidd` consumes a gesture before the connection is torn down.
