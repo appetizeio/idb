@@ -534,8 +534,8 @@ public final class IDBCommandExecutor {
   }
 
   /// As `hid(events:)`, with touch points in the unrotated panel.
-  public func panel_hid<S: AsyncSequence>(events: S) async throws where S.Element == SimulatorHIDEvent {
-    try await connectToHID().panel().send(events: events, logger: logger)
+  public func unrotated_hid<S: AsyncSequence>(events: S) async throws where S.Element == SimulatorHIDEvent {
+    try await connectToHID().unrotated().send(events: events, logger: logger)
   }
 
   public func set_hardware_keyboard_enabled(_ enabled: Bool) async throws {

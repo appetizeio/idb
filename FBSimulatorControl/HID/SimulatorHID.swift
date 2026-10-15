@@ -70,8 +70,8 @@ public final class SimulatorHID: CustomStringConvertible, Sendable {
   }
 
   /// This HID's connection and lease, taking touch points in the unrotated panel.
-  public func panel() -> SimulatorHID {
-    SimulatorHID(transport: transport, operationLease: operationLease, displays: displays.map(PanelDisplayCommands.init), logging: logging)
+  public func unrotated() -> SimulatorHID {
+    SimulatorHID(transport: transport, operationLease: operationLease, displays: displays.map(UprightDisplayCommands.init), logging: logging)
   }
 
   // MARK: - Input transport

@@ -224,10 +224,10 @@ final class CompanionServiceProvider: Idb_CompanionService.SimpleServiceProtocol
     }
   }
 
-  func panel_hid(request: RPCAsyncSequence<Idb_HIDEvent, any Error>, context: ServerContext) async throws -> Idb_HIDResponse {
+  func unrotated_hid(request: RPCAsyncSequence<Idb_HIDEvent, any Error>, context: ServerContext) async throws -> Idb_HIDResponse {
     let reader = RequestStreamReader(request)
     return try await trackedClientStreaming(context) {
-      try await HidMethodHandler(commandExecutor: commandExecutor, panel: true)
+      try await HidMethodHandler(commandExecutor: commandExecutor, unrotated: true)
         .handle(requestStream: reader, context: context)
     }
   }

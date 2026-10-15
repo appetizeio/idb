@@ -39,7 +39,7 @@ service CompanionService {
   // so the interface rotation neither moves a touch nor ends the stream. A
   // display change, such as a fold, ends it with ABORTED and the trailer
   // `hid-close-reason: display-changed`.
-  rpc panel_hid(stream HIDEvent) returns (HIDResponse) {}
+  rpc unrotated_hid(stream HIDEvent) returns (HIDResponse) {}
   rpc open_url(OpenUrlRequest) returns (OpenUrlRequest) {}
   rpc set_location(SetLocationRequest) returns (SetLocationResponse) {}
   rpc send_notification(SendNotificationRequest)

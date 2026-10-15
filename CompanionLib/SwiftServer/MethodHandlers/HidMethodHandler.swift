@@ -21,8 +21,8 @@ struct HidMethodHandler {
   }
 
   let commandExecutor: IDBCommandExecutor
-  /// Touch points are in the unrotated panel, as `panel_hid` takes them.
-  var panel = false
+  /// Touch points are in the unrotated panel, as `unrotated_hid` takes them.
+  var unrotated = false
 
   func handle(requestStream: RequestStreamReader<Idb_HIDEvent>, context: ServerContext) async throws -> Idb_HIDResponse {
     try await withRPCCancellation(context.cancellation) {
@@ -45,22 +45,22 @@ struct HidMethodHandler {
     return .init()
   }
 
-  /// The trailer `panel_hid` ends with, alongside `ABORTED`, when the display it bound changes.
+  /// The trailer `unrotated_hid` ends with, alongside `ABORTED`, when the display it bound changes.
   static let closeReasonKey = "hid-close-reason"
   static let displayChangedReason = "display-changed"
 
   private func send<S: AsyncSequence>(events: S) async throws where S.Element == SimulatorHIDEvent {
-    guard panel else {
+    guard unrotated else {
       try await commandExecutor.hid(events: events)
       return
     }
     do {
-      try await commandExecutor.panel_hid(events: events)
+      try await commandExecutor.unrotated_hid(events: events)
     } catch let error as SimulatorDisplayError {
       switch error {
       case .changed, .transitioning:
         throw RPCError(
-          code: .aborted, message: "\(error.localizedDescription); open a new panel_hid stream",
+          code: .aborted, message: "\(error.localizedDescription); open a new unrotated_hid stream",
           metadata: [Self.closeReasonKey: "\(Self.displayChangedReason)"])
       case .noActiveIntegratedDisplay, .ambiguousActiveDisplays, .screensNotReported:
         throw error
