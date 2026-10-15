@@ -10,6 +10,7 @@ import Foundation
 
 /// The simulator's displays, each reported upright. A HID operation over these takes touch points in the unrotated
 /// panel, so a rotation neither moves a touch nor fails the operation; a display switch still does.
+/// Drop once `hid` can skip interface rotation: https://github.com/facebook/idb/issues/980
 final class UprightDisplayCommands: DisplayCommands {
   private let displays: any DisplayCommands
   /// Its own, so that the configurations it numbers differ only when the panels do.
