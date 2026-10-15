@@ -21,7 +21,7 @@ struct HidMethodHandler {
   }
 
   let commandExecutor: IDBCommandExecutor
-  /// Touch points are fractions of the unrotated panel, as `panel_hid` takes them.
+  /// Touch points are in the unrotated panel, as `panel_hid` takes them.
   var panel = false
 
   func handle(requestStream: RequestStreamReader<Idb_HIDEvent>, context: ServerContext) async throws -> Idb_HIDResponse {

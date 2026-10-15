@@ -533,7 +533,7 @@ public final class IDBCommandExecutor {
     try await hid.send(events: events, logger: logger)
   }
 
-  /// As `hid(events:)`, with touch points as fractions of the unrotated panel.
+  /// As `hid(events:)`, with touch points in the unrotated panel.
   public func panel_hid<S: AsyncSequence>(events: S) async throws where S.Element == SimulatorHIDEvent {
     try await connectToHID().panel().send(events: events, logger: logger)
   }

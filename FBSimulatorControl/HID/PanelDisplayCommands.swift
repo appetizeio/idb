@@ -8,8 +8,8 @@
 import FBControlCore
 import Foundation
 
-/// The simulator's displays, each reported as an unrotated unit panel. A HID operation over these takes touch points
-/// as fractions of the panel, so a rotation neither moves a touch nor fails the operation; a display switch still does.
+/// The simulator's displays, each reported upright. A HID operation over these takes touch points in the unrotated
+/// panel, so a rotation neither moves a touch nor fails the operation; a display switch still does.
 final class PanelDisplayCommands: DisplayCommands {
   private let displays: any DisplayCommands
   /// Its own, so that the configurations it numbers differ only when the panels do.
@@ -46,27 +46,22 @@ final class PanelDisplayCommands: DisplayCommands {
     }
   }
 
-  private static let unit = SimulatorDisplayGeometry(bounds: CGRect(x: 0, y: 0, width: 1, height: 1), scale: 1, rotation: .upright)
-
   static func panels(_ report: SimulatorDisplayReport) -> SimulatorDisplayReport {
-    switch SimulatorDisplayResolution(report) {
-    // Input reaches the main display without a geometry, which would read the fractions as points.
-    case .fallback(.unreadable), .fallback(.legacyIntegratedDisplays), .fallback(.unknownActivity):
-      return .legacy(integrated: [unit])
-    case .fallback, .target, .transitioning:
-      break
-    }
     switch report {
     case let .displays(displays): return .displays(displays.map(panel))
-    case let .legacy(integrated): return .legacy(integrated: integrated.map { _ in unit })
+    case let .legacy(integrated): return .legacy(integrated: integrated.map(panel))
     case let .transitioning(incoming): return .transitioning(incoming: incoming.map(panel))
     case .failed: return report
     }
   }
 
+  private static func panel(_ geometry: SimulatorDisplayGeometry) -> SimulatorDisplayGeometry {
+    SimulatorDisplayGeometry(bounds: geometry.bounds, scale: geometry.scale, rotation: .upright)
+  }
+
   private static func panel(_ display: SimulatorDisplay) -> SimulatorDisplay {
     SimulatorDisplay(
       uniqueID: display.uniqueID, name: display.name, activity: display.activity, isPrimary: display.isPrimary,
-      isIntegrated: display.isIntegrated, bounds: unit.bounds, scale: unit.scale, rotation: unit.rotation)
+      isIntegrated: display.isIntegrated, bounds: display.bounds, scale: display.scale, rotation: .upright)
   }
 }
