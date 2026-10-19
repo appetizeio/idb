@@ -975,6 +975,8 @@ message FramebufferInfo {
   string format = 5;
 }
 
+// Fork-only, as is framebuffer_stream: the displays let a client follow the active display of a
+// multi-display simulator, such as the iPhone Duo. Not upstream.
 enum DisplayRotation {
   ROT0 = 0;
   ROT90 = 1;

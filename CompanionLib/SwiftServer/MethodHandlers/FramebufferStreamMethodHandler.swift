@@ -136,7 +136,9 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
       }
     }
     let events = Task {
+      // Nothing here waits on a rendered frame: copies are answered from the current surface.
       for await event in attachment.events {
+        if case .frameRendered = event { continue }
         continuation.yield(.event(event))
       }
       continuation.yield(.eventsEnded)
@@ -338,7 +340,7 @@ private struct FramebufferStreamState {
   private var configuration: SimulatorDisplayConfiguration?
   /// The display the surface belongs to, once a configuration identifies it.
   private var captured: String?
-  /// The active display the framebuffer is moving to. Its surface arrives with the next `surfaceChanged`.
+  /// The active display the framebuffer is moving to, until a surface of its size arrives.
   private var incoming: String?
   private var announced: Idb_FramebufferDisplays?
   private var scaleLatched = false
@@ -350,17 +352,21 @@ private struct FramebufferStreamState {
   }
 
   /// A following framebuffer reports a configuration naming a new active display ahead of the surface
-  /// that moves to it; the surfaces between still belong to the captured display.
+  /// that moves to it; the surfaces between still belong to the captured display. A surface is matched to
+  /// its display by size, as the video stream does, so a display the framebuffer fails to move to stays
+  /// incoming and the stream announces `switching`.
   mutating func apply(_ event: FramebufferEvent, logger: any ControlCoreLogger) {
     switch event {
     case let .surfaceChanged(surface):
       self.surface = surface
-      if let incoming {
+      guard let surface else { return }
+      if let owner = display(sized: surface) {
+        captured = owner
+        if owner == incoming { incoming = nil }
+      } else if let incoming {
+        // No display is the surface's size, so it is taken to be the move.
         captured = incoming
         self.incoming = nil
-      } else if let surface, let owner = soleDisplay(sized: surface), owner != captured {
-        // The surface moved before a configuration named its display.
-        captured = owner
       }
     case let .configurationChanged(configuration):
       self.configuration = configuration
@@ -398,11 +404,16 @@ private struct FramebufferStreamState {
     return displays
   }
 
-  /// The one integrated display whose surface is the size of `surface`, if exactly one is.
-  private func soleDisplay(sized surface: IOSurface) -> String? {
+  /// The display whose surface is the size of `surface`: the incoming display, then the captured one, then
+  /// any other integrated display.
+  private func display(sized surface: IOSurface) -> String? {
     let size = CGSize(width: IOSurfaceGetWidth(surface), height: IOSurfaceGetHeight(surface))
-    let matching = configuration?.displays.filter { $0.isIntegrated && $0.geometry.surfacePixelSize == size } ?? []
-    return matching.count == 1 ? matching[0].uniqueID : nil
+    var displays = configuration?.displays.filter(\.isIntegrated) ?? []
+    if case let .transitioning(display?)? = configuration?.phase {
+      displays.insert(display, at: 0)
+    }
+    let candidates = displays.filter { $0.uniqueID == incoming } + displays.filter { $0.uniqueID == captured } + displays
+    return candidates.first { $0.geometry.surfacePixelSize == size }?.uniqueID
   }
 
   /// The integrated displays, or the surface alone on runtimes that do not identify their displays.
@@ -428,7 +439,7 @@ private struct FramebufferStreamState {
         $0.active = display.isActive
         $0.captured = display.uniqueID == captured
         // The captured display's size is the surface's, which is what its frames are copied from.
-        let size = $0.captured ? CGSize(width: IOSurfaceGetWidth(surface), height: IOSurfaceGetHeight(surface)) : display.bounds.size
+        let size = $0.captured ? CGSize(width: IOSurfaceGetWidth(surface), height: IOSurfaceGetHeight(surface)) : display.geometry.surfacePixelSize
         $0.width = UInt32(size.width)
         $0.height = UInt32(size.height)
         $0.scale = display.scale
