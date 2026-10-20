@@ -997,6 +997,8 @@ message FramebufferDisplay {
   optional double scale = 6;
   // The interface rotation relative to the frame.
   optional DisplayRotation rotation = 7;
+  // The runtime's name, as in Display.name. Empty when unique_id is.
+  string name = 8;
 }
 
 // The displays a framebuffer stream reads from. Sent before the first frame and whenever they change;
@@ -1016,6 +1018,9 @@ message FramebufferStreamResponse {
   optional FramebufferInfo framebuffer_info = 4;
   // Sent unrequested, between copy responses.
   optional FramebufferDisplays displays = 5;
+  // A copy's response: the runtime's name for the display its frame was read from. Empty on runtimes
+  // that do not identify their displays.
+  string display_name = 6;
 }
 
 message LaunchRequest {
