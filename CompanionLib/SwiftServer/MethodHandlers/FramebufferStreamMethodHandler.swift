@@ -231,6 +231,7 @@ struct FramebufferStreamMethodHandler: @unchecked Sendable {
         $0.sharedMemoryName = copy.sharedMemoryName
         $0.bytesWritten = UInt64(written)
         $0.framebufferInfo = geometry.proto
+        $0.displayName = state.displayName
       }
     } catch {
       return failedResponse(for: copy, error: error)
@@ -404,6 +405,11 @@ private struct FramebufferStreamState {
     return displays
   }
 
+  /// The captured display's name. Empty on runtimes that do not identify their displays.
+  var displayName: String {
+    configuration?.displays.first { $0.uniqueID == captured }?.name ?? ""
+  }
+
   /// The display whose surface is the size of `surface`: the incoming display, then the captured one, then
   /// any other integrated display.
   private func display(sized surface: IOSurface) -> String? {
@@ -436,6 +442,7 @@ private struct FramebufferStreamState {
     return identified.map { display in
       Idb_FramebufferDisplay.with {
         $0.uniqueID = display.uniqueID
+        $0.name = display.name
         $0.active = display.isActive
         $0.captured = display.uniqueID == captured
         // The captured display's size is the surface's, which is what its frames are copied from.
