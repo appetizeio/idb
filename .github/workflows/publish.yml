@@ -1,0 +1,58 @@
+name: Publish
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: publish-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  types:
+    name: idb types package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    defaults:
+      run:
+        working-directory: npm/idb-types
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@appetizeio'
+      - name: Install dependencies
+        run: npm ci
+      - name: Set the version
+        id: version
+        run: |
+          base=$(node -p "require('./package.json').version")
+          version="${base}-appetize.${GITHUB_RUN_NUMBER}"
+          npm version "$version" --no-git-tag-version
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      # Pull requests build the package without publishing it.
+      - name: Build the package
+        run: npm pack
+      - name: Publish
+        if: github.event_name == 'push'
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # A re-run publishes the same version again.
+          if npm view "@appetizeio/idb-types@$VERSION" version > /dev/null 2>&1; then
+            echo "@appetizeio/idb-types@$VERSION is already published"
+          else
+            npm publish --ignore-scripts
+          fi
