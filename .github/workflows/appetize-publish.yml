@@ -1,0 +1,65 @@
+name: Appetize Publish
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+# Runs on main never share a group, so no merge's publish is cancelled.
+concurrency:
+  group: appetize-publish-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  types:
+    name: idb types package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Set the version
+        id: version
+        working-directory: npm/idb-types
+        run: |
+          base=$(node -p "require('./package.json').version")
+          version="${base}-appetize.${GITHUB_RUN_NUMBER}"
+          node -e '
+            const fs = require("fs");
+            const manifest = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            manifest.version = process.argv[1];
+            fs.writeFileSync("package.json", JSON.stringify(manifest, null, 4) + "\n");
+          ' "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      # Pull requests build the package without publishing it.
+      - name: Build
+        run: pnpm run build
+      - name: Publish
+        if: github.event_name == 'push' && github.repository == 'appetizeio/idb'
+        working-directory: npm/idb-types
+        env:
+          APPETIZEIO_GITHUB_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          pnpm config set --global "//npm.pkg.github.com/:_authToken" '${APPETIZEIO_GITHUB_TOKEN}'
+          # A re-run publishes the same version again.
+          published=$(pnpm view "@appetizeio/idb-types@$VERSION" version 2> /dev/null || true)
+          if [ "$published" = "$VERSION" ]; then
+            echo "@appetizeio/idb-types@$VERSION is already published"
+          else
+            pnpm publish --no-git-checks --ignore-scripts --tag latest
+          fi

@@ -13,18 +13,17 @@
         "registry": "https://npm.pkg.github.com"
     },
     "files": [
-        "dist",
-        "proto"
+        "dist"
     ],
     "exports": {
-        "./proto/*": "./proto/*",
         "./*": "./dist/*"
     },
     "scripts": {
-        "clean": "rm -rf src dist proto",
-        "generate": "proto-loader-gen-types --grpcLib=@grpc/grpc-js --importFileExtension=.js --outDir=src ../../proto/*.proto",
-        "build": "npm run clean && npm run generate && tsc && mkdir proto && cp ../../proto/*.proto proto/",
-        "prepack": "npm run build"
+        "build": "pnpm run build:clean && pnpm run build:types && pnpm run build:proto && tsc",
+        "build:clean": "rm -rf src dist",
+        "build:types": "proto-loader-gen-types --grpcLib=@grpc/grpc-js --importFileExtension=.js --outDir=src ../../proto/*.proto",
+        "build:proto": "node scripts/generate-proto-module.js",
+        "prepack": "pnpm run build"
     },
     "peerDependencies": {
         "@grpc/grpc-js": "^1.14.0",
@@ -33,6 +32,7 @@
     "devDependencies": {
         "@grpc/grpc-js": "1.14.7",
         "@grpc/proto-loader": "0.8.1",
+        "protobufjs": "7.6.6",
         "typescript": "5.9.3"
     }
 }
