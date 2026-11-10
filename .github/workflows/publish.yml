@@ -5,9 +5,10 @@ on:
       - main
   pull_request:
 
+# Runs on main never share a group, so no merge's publish is cancelled.
 concurrency:
-  group: publish-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: publish-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -33,7 +34,7 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: '@appetizeio'
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Set the version
         id: version
         run: |
@@ -45,14 +46,15 @@ jobs:
       - name: Build the package
         run: npm pack
       - name: Publish
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.repository == 'appetizeio/idb'
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           # A re-run publishes the same version again.
-          if npm view "@appetizeio/idb-types@$VERSION" version > /dev/null 2>&1; then
+          published=$(npm view "@appetizeio/idb-types@$VERSION" version 2> /dev/null || true)
+          if [ "$published" = "$VERSION" ]; then
             echo "@appetizeio/idb-types@$VERSION is already published"
           else
-            npm publish --ignore-scripts
+            npm publish --ignore-scripts --tag latest
           fi
