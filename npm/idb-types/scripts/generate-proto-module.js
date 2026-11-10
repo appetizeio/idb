@@ -12,17 +12,21 @@ const descriptor = JSON.stringify(protobuf.loadSync(protoPath).toJSON());
 mkdirSync(new URL('../src/', import.meta.url), { recursive: true });
 writeFileSync(
     outPath,
-    `import { fromJSON, type PackageDefinition } from '@grpc/proto-loader';
+    `import { loadPackageDefinition } from '@grpc/grpc-js';
+import { fromJSON } from '@grpc/proto-loader';
 import type { INamespace } from 'protobufjs';
+import type { ProtoGrpcType } from './idb.js';
 
 /** Source of idb.proto. */
 export const protoSource: string = ${JSON.stringify(source)};
 
 const descriptor = ${JSON.stringify(descriptor)};
 
-/** Package definition of idb.proto, loaded as the generated types expect. */
-export function createPackageDefinition(): PackageDefinition {
-    return fromJSON(JSON.parse(descriptor) as INamespace);
+/** Loads idb.proto from memory as a typed gRPC package. */
+export function loadPackage(): ProtoGrpcType {
+    const definition = fromJSON(JSON.parse(descriptor) as INamespace);
+    // loadPackageDefinition returns an untyped object.
+    return loadPackageDefinition(definition) as unknown as ProtoGrpcType;
 }
 `
 );

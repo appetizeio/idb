@@ -4,10 +4,11 @@
 
 ```ts
 import * as grpc from '@grpc/grpc-js';
-import type { ProtoGrpcType } from '@appetizeio/idb-types/idb.js';
-import { createPackageDefinition } from '@appetizeio/idb-types/proto.js';
+import type { CompanionServiceClient } from '@appetizeio/idb-types/idb/CompanionService.js';
+import { loadPackage } from '@appetizeio/idb-types/proto.js';
 
-const idb = grpc.loadPackageDefinition(createPackageDefinition()) as unknown as ProtoGrpcType;
+const { idb } = loadPackage();
+const client: CompanionServiceClient = new idb.CompanionService(address, grpc.credentials.createInsecure());
 ```
 
 The proto is held in memory, so nothing has to be found on disk after bundling. Its source is also exported, as `protoSource`.
