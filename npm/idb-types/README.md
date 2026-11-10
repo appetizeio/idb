@@ -4,14 +4,14 @@
 
 ```ts
 import * as grpc from '@grpc/grpc-js';
-import type { CompanionServiceClient } from '@appetizeio/idb-types/idb/CompanionService.js';
-import { loadPackage } from '@appetizeio/idb-types/proto.js';
+import { fromJSON } from '@grpc/proto-loader';
+import type { ProtoGrpcType } from '@appetizeio/idb-types/idb.js';
+import { protoDescriptor } from '@appetizeio/idb-types/proto.js';
 
-const { idb } = loadPackage();
-const client: CompanionServiceClient = new idb.CompanionService(address, grpc.credentials.createInsecure());
+const { idb } = grpc.loadPackageDefinition(fromJSON(protoDescriptor)) as unknown as ProtoGrpcType;
 ```
 
-The proto is held in memory, so nothing has to be found on disk after bundling. Its source is also exported, as `protoSource`.
+`protoDescriptor` is `idb.proto` held in memory, so nothing has to be found on disk after bundling. The package runs no gRPC code of its own: `@grpc/grpc-js` and `@grpc/proto-loader` are only referenced as types.
 
 ## Building
 
