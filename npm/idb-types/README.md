@@ -19,4 +19,6 @@ pnpm install
 pnpm run build
 ```
 
+The generated types in `src/` are committed, so a change to `idb.proto` shows up in review as a change to the types. Run the build after editing the proto and commit the result; CI fails if they don't match.
+
 The `Appetize Publish` workflow publishes it to GitHub Packages on every merge to `main`, as `<version in package.json>-appetize.<run number>`. The version in `package.json` is the upstream idb version this repo is based on.

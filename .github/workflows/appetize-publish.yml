@@ -37,6 +37,13 @@ jobs:
       # Pull requests build the package without publishing it.
       - name: Build
         run: pnpm run build
+      - name: Check the committed types match the proto
+        run: |
+          if [ -n "$(git status --porcelain -- npm/*/src)" ]; then
+            git status --short -- npm/*/src
+            echo "::error::Generated types are out of date. Run 'pnpm run build' and commit npm/*/src."
+            exit 1
+          fi
       - name: Publish
         if: github.event_name == 'push' && github.repository == 'appetizeio/idb'
         env:
