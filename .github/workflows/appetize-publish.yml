@@ -32,22 +32,17 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Set the version
-        run: pnpm run version "$GITHUB_RUN_NUMBER"
-      # Pull requests build the package without publishing it.
+      # Pull requests build and validate the package without publishing it.
       - name: Build
         run: pnpm run build
-      - name: Check the committed types match the proto
-        run: |
-          if [ -n "$(git status --porcelain -- npm/*/src)" ]; then
-            git status --short -- npm/*/src
-            echo "::error::Generated types are out of date. Run 'pnpm run build' and commit npm/*/src."
-            exit 1
-          fi
+      - name: Validate
+        run: pnpm run validate
+      - name: Set the version
+        run: pnpm run version "$GITHUB_RUN_NUMBER"
       - name: Publish
         if: github.event_name == 'push' && github.repository == 'appetizeio/idb'
         env:
-          APPETIZEIO_GITHUB_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: |
-          pnpm config set --global "//npm.pkg.github.com/:_authToken" '${APPETIZEIO_GITHUB_TOKEN}'
+          pnpm config set --global "//npm.pkg.github.com/:_authToken" '${NODE_AUTH_TOKEN}'
           pnpm run release

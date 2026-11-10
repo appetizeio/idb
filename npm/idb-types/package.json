@@ -19,11 +19,12 @@
         "./*": "./dist/*"
     },
     "scripts": {
-        "build": "pnpm run build:clean && pnpm run build:types && pnpm run build:proto && tsc",
+        "build": "run-s build:clean build:types build:proto tsc",
         "build:clean": "rm -rf src dist",
         "build:types": "proto-loader-gen-types --grpcLib=@grpc/grpc-js --importFileExtension=.js --outDir=src ../../proto/*.proto",
         "build:proto": "node scripts/generate-proto-module.js",
-        "prepack": "pnpm run build"
+        "prepack": "pnpm run build",
+        "tsc": "tsc"
     },
     "peerDependencies": {
         "@grpc/grpc-js": "^1.14.0",
