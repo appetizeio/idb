@@ -33,33 +33,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Set the version
-        id: version
-        working-directory: npm/idb-types
-        run: |
-          base=$(node -p "require('./package.json').version")
-          version="${base}-appetize.${GITHUB_RUN_NUMBER}"
-          node -e '
-            const fs = require("fs");
-            const manifest = JSON.parse(fs.readFileSync("package.json", "utf8"));
-            manifest.version = process.argv[1];
-            fs.writeFileSync("package.json", JSON.stringify(manifest, null, 4) + "\n");
-          ' "$version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+        run: pnpm run version "$GITHUB_RUN_NUMBER"
       # Pull requests build the package without publishing it.
       - name: Build
         run: pnpm run build
       - name: Publish
         if: github.event_name == 'push' && github.repository == 'appetizeio/idb'
-        working-directory: npm/idb-types
         env:
           APPETIZEIO_GITHUB_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
           pnpm config set --global "//npm.pkg.github.com/:_authToken" '${APPETIZEIO_GITHUB_TOKEN}'
-          # A re-run publishes the same version again.
-          published=$(pnpm view "@appetizeio/idb-types@$VERSION" version 2> /dev/null || true)
-          if [ "$published" = "$VERSION" ]; then
-            echo "@appetizeio/idb-types@$VERSION is already published"
-          else
-            pnpm publish --no-git-checks --ignore-scripts --tag latest
-          fi
+          pnpm run release
