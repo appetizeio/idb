@@ -1,0 +1,25 @@
+# @appetizeio/idb-proto
+
+`idb.proto` and the TypeScript types generated from it with `proto-loader-gen-types`, for Node clients of `idb_companion`.
+
+```ts
+import * as grpc from '@grpc/grpc-js';
+import { fromJSON } from '@grpc/proto-loader';
+import type { ProtoGrpcType } from '@appetizeio/idb-proto/idb.js';
+import { protoDescriptor } from '@appetizeio/idb-proto/proto.js';
+
+const { idb } = grpc.loadPackageDefinition(fromJSON(protoDescriptor)) as unknown as ProtoGrpcType;
+```
+
+`protoDescriptor` is `idb.proto` held in memory, so nothing has to be found on disk after bundling. The package runs no gRPC code of its own: `@grpc/grpc-js` and `@grpc/proto-loader` are only referenced as types.
+
+## Building
+
+```bash
+pnpm install
+pnpm run build
+```
+
+The generated types in `src/` are committed, so a change to `idb.proto` shows up in review as a change to the types. Run the build after editing the proto and commit the result; CI fails if they don't match.
+
+The `Appetize Publish` workflow publishes it to GitHub Packages on every merge to `main`, as `<version in package.json>-appetize.<run number>.g<commit>`. The version in `package.json` is the upstream idb version this repo is based on.
