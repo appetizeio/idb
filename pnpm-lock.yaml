@@ -170,7 +170,7 @@ importers:
         specifier: ^9.0.4
         version: 9.0.4
 
-  npm/idb-types:
+  npm/idb-proto:
     devDependencies:
       '@grpc/grpc-js':
         specifier: 1.14.7

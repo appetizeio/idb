@@ -1,12 +1,12 @@
-# @appetizeio/idb-types
+# @appetizeio/idb-proto
 
 `idb.proto` and the TypeScript types generated from it with `proto-loader-gen-types`, for Node clients of `idb_companion`.
 
 ```ts
 import * as grpc from '@grpc/grpc-js';
 import { fromJSON } from '@grpc/proto-loader';
-import type { ProtoGrpcType } from '@appetizeio/idb-types/idb.js';
-import { protoDescriptor } from '@appetizeio/idb-types/proto.js';
+import type { ProtoGrpcType } from '@appetizeio/idb-proto/idb.js';
+import { protoDescriptor } from '@appetizeio/idb-proto/proto.js';
 
 const { idb } = grpc.loadPackageDefinition(fromJSON(protoDescriptor)) as unknown as ProtoGrpcType;
 ```

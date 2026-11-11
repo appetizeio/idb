@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 jobs:
-  types:
-    name: idb types package
+  proto:
+    name: idb proto package
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
