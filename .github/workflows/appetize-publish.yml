@@ -58,6 +58,8 @@ jobs:
       id-token: write
     env:
       ARCHIVE: idb-darwin-arm64.tgz
+      BINARIES_BUCKET: appetizeio-device-binaries
+      BINARIES_BASE_URL: https://d1tebkokbgubug.cloudfront.net
       CODESIGN_IDENTITY: Appetize.io LLC Code Signing
     steps:
       # A prerelease is a build of the pull request's head commit, not of its merge into main.
@@ -99,13 +101,11 @@ jobs:
           echo "version=$(jq -r .version npm/idb-proto/package.json)" >> "$GITHUB_OUTPUT"
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ github.event_name == 'push' && vars.BINARIES_UPLOAD_ROLE_ARN || vars.BINARIES_PRERELEASE_UPLOAD_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::432147404684:role/${{ github.event_name == 'push' && 'github-binaries-upload' || 'github-binaries-upload-prerelease' }}
           aws-region: us-east-2
       # Pull requests publish a prerelease under their head commit.
       - name: Upload
         env:
-          BINARIES_BUCKET: ${{ vars.BINARIES_BUCKET }}
-          BINARIES_BASE_URL: ${{ vars.BINARIES_BASE_URL }}
           PREFIX: ${{ github.event_name == 'push' && format('release/idb/{0}', steps.version.outputs.version) || format('prerelease/idb/{0}', github.event.pull_request.head.sha) }}
         run: |
           aws configure set default.s3.use_accelerate_endpoint true
