@@ -46,3 +46,64 @@ jobs:
         run: |
           pnpm config set --global "//npm.pkg.github.com/:_authToken" '${NODE_AUTH_TOKEN}'
           pnpm run release
+
+  idb:
+    name: idb binary
+    runs-on: macos-26
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARCHIVE: idb-darwin-arm64.tgz
+      CODESIGN_IDENTITY: Appetize.io LLC Code Signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install build tools
+        run: brew install xcodegen protobuf
+      - name: Build
+        run: ./build.sh build
+      - name: Import the signing certificate
+        env:
+          CODESIGN_CERT: ${{ secrets.CODESIGN_CERT }}
+          CODESIGN_CERT_PWD: ${{ secrets.CODESIGN_CERT_PWD }}
+        run: |
+          certificate="$RUNNER_TEMP/certificate.p12"
+          keychain="$RUNNER_TEMP/signing.keychain"
+          keychain_password=$(openssl rand -hex 16)
+          echo -n "$CODESIGN_CERT" | base64 --decode > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -P "$CODESIGN_CERT_PWD" -A -t cert -f pkcs12 -k "$keychain"
+          security list-keychain -d user -s "$keychain"
+      - name: Sign
+        run: |
+          codesign -s "$CODESIGN_IDENTITY" -f Build/Distribution/idb_companion
+          find Build/Distribution/Resources -name '*.dylib' -exec codesign -s "$CODESIGN_IDENTITY" -f {} +
+          codesign --verify --verbose Build/Distribution/idb_companion
+          Build/Distribution/idb_companion --version
+      - name: Archive
+        run: |
+          tar -C Build/Distribution -czf "$ARCHIVE" .
+          shasum -a 256 "$ARCHIVE" | tee "$ARCHIVE.sha256"
+      # The same version as the proto package.
+      - name: Set the version
+        id: version
+        run: |
+          node npm/set-version.js "$GITHUB_RUN_NUMBER"
+          echo "version=$(jq -r .version npm/idb-proto/package.json)" >> "$GITHUB_OUTPUT"
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ github.event_name == 'push' && vars.BINARIES_UPLOAD_ROLE_ARN || vars.BINARIES_PRERELEASE_UPLOAD_ROLE_ARN }}
+          aws-region: us-east-2
+      # Pull requests publish a prerelease under their head commit.
+      - name: Upload
+        env:
+          BINARIES_BUCKET: ${{ vars.BINARIES_BUCKET }}
+          PREFIX: ${{ github.event_name == 'push' && format('release/idb/{0}', steps.version.outputs.version) || format('prerelease/idb/{0}', github.event.pull_request.head.sha) }}
+        run: |
+          aws configure set default.s3.use_accelerate_endpoint true
+          .github/scripts/appetize-upload.sh "$PREFIX" "$ARCHIVE" "$ARCHIVE.sha256"
