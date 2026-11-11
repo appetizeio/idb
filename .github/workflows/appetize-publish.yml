@@ -49,8 +49,10 @@ jobs:
 
   idb:
     name: idb binary
+    # Pull requests from forks get no secrets and no upload role.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: macos-26
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       contents: read
       id-token: write
@@ -58,8 +60,10 @@ jobs:
       ARCHIVE: idb-darwin-arm64.tgz
       CODESIGN_IDENTITY: Appetize.io LLC Code Signing
     steps:
+      # A prerelease is a build of the pull request's head commit, not of its merge into main.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Install build tools
         run: brew install xcodegen protobuf
@@ -86,9 +90,7 @@ jobs:
           codesign --verify --verbose Build/Distribution/idb_companion
           Build/Distribution/idb_companion --version
       - name: Archive
-        run: |
-          tar -C Build/Distribution -czf "$ARCHIVE" .
-          shasum -a 256 "$ARCHIVE" | tee "$ARCHIVE.sha256"
+        run: tar -C Build/Distribution -czf "$ARCHIVE" .
       # The same version as the proto package.
       - name: Set the version
         id: version
@@ -103,7 +105,8 @@ jobs:
       - name: Upload
         env:
           BINARIES_BUCKET: ${{ vars.BINARIES_BUCKET }}
+          BINARIES_BASE_URL: ${{ vars.BINARIES_BASE_URL }}
           PREFIX: ${{ github.event_name == 'push' && format('release/idb/{0}', steps.version.outputs.version) || format('prerelease/idb/{0}', github.event.pull_request.head.sha) }}
         run: |
           aws configure set default.s3.use_accelerate_endpoint true
-          .github/scripts/appetize-upload.sh "$PREFIX" "$ARCHIVE" "$ARCHIVE.sha256"
+          .github/scripts/appetize-upload.sh "$PREFIX" "$ARCHIVE"
