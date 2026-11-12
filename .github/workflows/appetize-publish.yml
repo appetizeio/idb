@@ -24,6 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # History without file contents, to find the commit main was at before the push.
+          fetch-depth: 0
+          filter: blob:none
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
@@ -39,10 +42,87 @@ jobs:
         run: pnpm run validate
       - name: Set the version
         run: pnpm run version "$GITHUB_RUN_NUMBER"
+      # A proto change always changes its committed types, so npm/ covers both.
+      - name: Check whether the package changed
+        id: package
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+        # Compares npm/ now with npm/ at the commit main was at before the push.
+        run: |
+          if [ "$(git rev-parse --quiet --verify "$BEFORE:npm")" = "$(git rev-parse HEAD:npm)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish
-        if: github.event_name == 'push' && github.repository == 'appetizeio/idb'
+        if: github.repository == 'appetizeio/idb' && steps.package.outputs.changed == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
         run: |
           pnpm config set --global "//npm.pkg.github.com/:_authToken" '${NODE_AUTH_TOKEN}'
           pnpm run release
+
+  idb:
+    name: idb binary
+    # Pull requests from forks get no secrets and no upload role.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: macos-26
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARCHIVE: idb-darwin-arm64.tgz
+      CODESIGN_IDENTITY: Appetize.io LLC Code Signing
+    steps:
+      # A prerelease is a build of the pull request's head commit, not of its merge into main.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install build tools
+        run: brew install xcodegen protobuf
+      - name: Build
+        run: ./build.sh build
+      - name: Import the signing certificate
+        env:
+          CODESIGN_CERT: ${{ secrets.CODESIGN_CERT }}
+          CODESIGN_CERT_PWD: ${{ secrets.CODESIGN_CERT_PWD }}
+        run: |
+          certificate="$RUNNER_TEMP/certificate.p12"
+          keychain="$RUNNER_TEMP/signing.keychain"
+          keychain_password=$(openssl rand -hex 16)
+          echo -n "$CODESIGN_CERT" | base64 --decode > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -P "$CODESIGN_CERT_PWD" -A -t cert -f pkcs12 -k "$keychain"
+          security list-keychain -d user -s "$keychain"
+      - name: Sign
+        run: |
+          codesign -s "$CODESIGN_IDENTITY" -f Build/Distribution/idb_companion
+          find Build/Distribution/Resources -name '*.dylib' -exec codesign -s "$CODESIGN_IDENTITY" -f {} +
+          codesign --verify --verbose Build/Distribution/idb_companion
+          Build/Distribution/idb_companion --version
+      - name: Archive
+        run: tar -C Build/Distribution -czf "$ARCHIVE" .
+      # Versioned the same way as the proto package.
+      - name: Set the version
+        id: version
+        run: |
+          node npm/set-version.js "$GITHUB_RUN_NUMBER"
+          echo "version=$(jq -r .version npm/idb-proto/package.json)" >> "$GITHUB_OUTPUT"
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ github.event_name == 'push' && vars.BINARIES_UPLOAD_ROLE_ARN || vars.BINARIES_PRERELEASE_UPLOAD_ROLE_ARN }}
+          aws-region: us-east-2
+      # Pull requests publish a prerelease under their head commit.
+      - name: Upload
+        env:
+          BINARIES_BUCKET: ${{ vars.BINARIES_BUCKET }}
+          BINARIES_BASE_URL: ${{ vars.BINARIES_BASE_URL }}
+          PREFIX: ${{ github.event_name == 'push' && format('release/idb/{0}', steps.version.outputs.version) || format('prerelease/idb/{0}', github.event.pull_request.head.sha) }}
+        run: |
+          aws configure set default.s3.use_accelerate_endpoint true
+          .github/scripts/appetize-upload.sh "$PREFIX" "$ARCHIVE"
