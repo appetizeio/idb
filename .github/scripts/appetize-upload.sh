@@ -25,9 +25,12 @@ put() {
   fi
 }
 
+# The archive is never uploaded twice. When it is already published, download
+# that one over the local build, so the sha256 below is the published archive's.
 if ! put "$archive" "$prefix/$name" application/gzip; then
   curl --fail --silent --show-error --location --retry 3 --output "$archive" "$BINARIES_BASE_URL/$prefix/$name"
 fi
 
+# Publish the sha256 unless one is already there.
 (cd "$(dirname "$archive")" && shasum -a 256 "$name" | tee "$name.sha256")
 put "$archive.sha256" "$prefix/$name.sha256" text/plain || true
