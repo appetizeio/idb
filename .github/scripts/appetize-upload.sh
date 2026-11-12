@@ -1,7 +1,6 @@
 #!/bin/bash
 # Publishes an archive and its sha256 under a prefix of the binaries bucket.
-# Never overwrites: when the archive is already there, the published one
-# replaces the local file, so the sha256 always matches what downloads.
+# Keeps whatever is already published there.
 #
 # usage: BINARIES_BUCKET=<bucket> BINARIES_BASE_URL=<url> appetize-upload.sh <prefix> <archive>
 set -euo pipefail
@@ -25,12 +24,12 @@ put() {
   fi
 }
 
-# The archive is never uploaded twice. When it is already published, download
-# that one over the local build, so the sha256 below is the published archive's.
+# Upload the archive. When it is already published, download the published
+# one over the local build, so the sha256 below is the published archive's.
 if ! put "$archive" "$prefix/$name" application/gzip; then
   curl --fail --silent --show-error --location --retry 3 --output "$archive" "$BINARIES_BASE_URL/$prefix/$name"
 fi
 
-# Publish the sha256 unless one is already there.
+# Upload the archive's sha256, keeping one that is already published.
 (cd "$(dirname "$archive")" && shasum -a 256 "$name" | tee "$name.sha256")
 put "$archive.sha256" "$prefix/$name.sha256" text/plain || true
