@@ -42,19 +42,21 @@ jobs:
         run: pnpm run validate
       - name: Set the version
         run: pnpm run version "$GITHUB_RUN_NUMBER"
-      # A proto change always changes its committed types, so npm/ covers both.
+      # The descriptor is built from the proto and not committed, so the proto is compared too.
       - name: Check whether the package changed
         id: package
         if: github.event_name == 'push'
         env:
           BEFORE: ${{ github.event.before }}
-        # Compares npm/ now with npm/ at the commit main was at before the push.
+        # Compares npm/ and proto/ now with the commit main was at before the push.
         run: |
-          if [ "$(git rev-parse --quiet --verify "$BEFORE:npm")" = "$(git rev-parse HEAD:npm)" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+          changed=false
+          for path in npm proto; do
+            if [ "$(git rev-parse --quiet --verify "$BEFORE:$path")" != "$(git rev-parse "HEAD:$path")" ]; then
+              changed=true
+            fi
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
       - name: Publish
         if: github.repository == 'appetizeio/idb' && steps.package.outputs.changed == 'true'
         env:
