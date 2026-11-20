@@ -69,7 +69,7 @@ jobs:
     name: idb binary
     # Pull requests from forks get no secrets and no upload role.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: macos-26
+    runs-on: namespace-profile-macos-26
     timeout-minutes: 120
     permissions:
       contents: read
@@ -83,6 +83,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      # Fails if the image no longer has this Xcode.
+      - name: Select Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s /Applications/Xcode_26.4.1.app
+          xcodebuild -version
       - name: Install build tools
         run: brew install xcodegen protobuf
       - name: Build
