@@ -83,10 +83,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Show the installed Xcodes
+      # Fails if the image no longer has this Xcode.
+      - name: Select Xcode
         run: |
           ls -d /Applications/Xcode*.app
-          xcode-select --print-path
+          sudo xcode-select -s /Applications/Xcode_26.4.1.app
           xcodebuild -version
       - name: Install build tools
         run: brew install xcodegen protobuf
